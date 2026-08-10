@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>O(1) 与单测覆盖 — 形式化（带说明）</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]})"></script>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      max-width: 44rem;
+      margin: 2rem auto;
+      padding: 0 1.25rem 3rem;
+      line-height: 1.65;
+      font-size: 15px;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: .4rem; }
+    .lead { opacity: .8; margin-bottom: 1.5rem; }
+    h2 {
+      font-size: 1.15rem;
+      margin-top: 2.25rem;
+      border-bottom: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+      padding-bottom: .35rem;
+    }
+    h3 { font-size: 1rem; margin: 1.5rem 0 .5rem; }
+    p { margin: .55rem 0; }
+    .eq {
+      margin: .85rem 0;
+      padding: .85rem 1rem;
+      border-radius: 8px;
+      background: color-mix(in srgb, CanvasText 6%, Canvas);
+      overflow-x: auto;
+    }
+    .after { opacity: .9; }
+    .tag {
+      display: inline-block;
+      font-size: .75rem;
+      font-family: ui-monospace, Consolas, monospace;
+      padding: .1rem .4rem;
+      border-radius: 4px;
+      background: color-mix(in srgb, CanvasText 10%, Canvas);
+      margin-right: .35rem;
+    }
+    ul { padding-left: 1.2rem; }
+    li { margin: .35rem 0; }
+  </style>
+</head>
+<body>
+  <h1>两个问题的数学表述</h1>
+  <p class="lead">
+    问题 1：软件能否做成「业务模块出度有上界」的 O(1) 系统。<br />
+    问题 2：单元测试集能否覆盖（乃至蕴含）功能集。
+  </p>
+
+  <h2>一、公共设定</h2>
+
+  <h3>系统与依赖图</h3>
+  <p>
+    用 $R$ 表示需求/功能集合，用 $M$ 表示模块集合。
+    模块之间的依赖构成有向图 $G=(M,E)$：
+    若模块 $a$ 依赖模块 $b$，则记一条边 $a\to b$。
+  </p>
+  <div class="eq">$$R,\quad M,\quad G=(M,E),\quad a\to b \iff (a,b)\in E$$</div>
+  <p class="after">
+    之后所有「出度 / 入度」都在这张依赖图上计算，而不是在业务流程图上计算。
+  </p>
+
+  <h3>出度</h3>
+  <p>
+    模块 $m$ 的<strong>出度</strong> $\mathrm{out}(m)$ 表示它依赖了多少个其它模块
+    （fan-out / efferent coupling）：
+  </p>
+  <div class="eq">$$\mathrm{out}(m)=\bigl|\{m'\mid (m,m')\in E\}\bigr|$$</div>
+  <p class="after">
+    O(1) 约束盯住的是这个量：业务插件的 $\mathrm{out}$ 不能随需求变多而一起涨。
+  </p>
+
+  <h3>角色划分</h3>
+  <p>把模块按角色分开，避免「所有点一视同仁」：</p>
+  <ul>
+    <li>$P$：业务插件（scan / watch / gate …）</li>
+    <li>$C$：契约/端口（traits、DTO）</li>
+    <li>$A$：组装根（main / compose）</li>
+    <li>$Env$：环境适配（真 OS、真网络、WFP …）</li>
+  </ul>
+  <div class="eq">$$P\subseteq M,\quad C\subseteq M,\quad A\subseteq M,\quad Env\subseteq M$$</div>
+  <p class="after">
+    O(1) 主要约束 $P$ 的出度；$C$ 的入度允许随插件变多而变大。
+  </p>
+
+  <h3>实现与测试关系</h3>
+  <p>
+    $\mathrm{Impl}$ 表示「哪个功能由哪些模块实现」；
+    $U$ 是单元测试集合；
+    $\mathrm{Covers}$ 表示「哪个单测覆盖哪个功能」。
+  </p>
+  <div class="eq">$$\mathrm{Impl}\subseteq R\times M,\quad U,\quad \mathrm{Covers}\subseteq U\times R$$</div>
+
+  <h2>二、问题 1：能否实现 O(1) 系统</h2>
+  <p>
+    这里的 O(1) <strong>不是</strong>「全图边数恒定」，而是：
+    存在与需求规模无关的常数 $K$，使得每个业务插件出度不超过 $K$。
+  </p>
+
+  <h3><span class="tag">O1</span>出度上界</h3>
+  <p>对每个业务插件 $p$，它依赖的模块数不得超过常数 $K$：</p>
+  <div class="eq">$$\forall\,p\in P:\quad \mathrm{out}(p)\le K$$</div>
+  <p class="after">
+    新需求来了，应主要通过「新插件」吸收，而不是让旧插件多 import 几个同伴。
+  </p>
+
+  <h3><span class="tag">NoCross</span>禁止插件互依</h3>
+  <p>任意两个业务插件之间不能直接依赖：</p>
+  <div class="eq">$$\forall\,p_1,p_2\in P:\quad (p_1,p_2)\notin E$$</div>
+  <p class="after">
+    这是微内核纪律：插件协作只能走契约、事件总线或经 runtime 转发，不能 $p_1\to p_2$。
+  </p>
+
+  <h3><span class="tag">PortsOnly</span>插件只依赖端口</h3>
+  <p>
+    插件的出边只能指向契约 $C$ 和少量固定基础设施 $B$（日志、总线等）：
+  </p>
+  <div class="eq">$$\forall\,p\in P:\quad \{m\mid (p,m)\in E\}\subseteq C\cup B$$</div>
+  <p class="after">
+    这样「复用旧接口」时，新加的是「新插件 → 旧端口」边，不会抬高其它旧插件的出度。
+  </p>
+
+  <h3><span class="tag">Q1</span>可行性命题</h3>
+  <p>
+    问题 1 的数学问法：是否存在统一的常数 $K$，使得对任意需求集 $R$，
+    都能找到实现 $(M,E)$，既实现全部需求，又满足插件出度不超过 $K$？
+  </p>
+  <div class="eq">$$\exists K\;\forall R\;\exists (M,E):\; \operatorname{implements}(R)\;\land\;\max_{p\in P}\mathrm{out}(p)\le K$$</div>
+  <p class="after">
+    在「加点 + 只连端口、旧插件不加出边」的构造下，该命题成立。
+    若还要求端口种类 $|C|$ 也永远不涨，则新需求只能落成旧端口的新实现。
+  </p>
+
+  <h2>三、问题 2：单测集能否覆盖功能集</h2>
+  <p>
+    先区分三种东西：功能的接受条件、单测是否通过、组装后的系统语义。
+  </p>
+  <div class="eq">$$\mathrm{Acc}_r(x),\quad \phi_u,\quad \mathrm{Pass}(u),\quad \mathrm{Sys}(M,E)$$</div>
+  <p class="after">
+    $\mathrm{Acc}_r$：功能 $r$ 在输入/环境 $x$ 下算正确；
+    $\mathrm{Pass}(u)$：单测 $u$ 绿；
+    $\mathrm{Sys}$：按依赖图组装后的系统行为。
+  </p>
+
+  <h3><span class="tag">Cover</span>弱形式：点名覆盖</h3>
+  <p>每个功能至少被某个单测「点到」（追踪关系，不保证语义蕴含）：</p>
+  <div class="eq">$$\forall r\in R\;\exists u\in U:\ (u,r)\in\mathrm{Covers}$$</div>
+  <p class="after">这只是追溯性，对 AI 收工来说通常不够强。</p>
+
+  <h3><span class="tag">UT⇒Feat</span>强形式：单测蕴含功能</h3>
+  <p>若全部单测通过，则系统满足全部功能的接受条件：</p>
+  <div class="eq">$$\Bigl(\bigwedge_{u\in U}\mathrm{Pass}(u)\Bigr) \;\implies\; \Bigl(\forall r\in R:\ \mathrm{Sys}\models\mathrm{Acc}_r\Bigr)$$</div>
+  <p class="after">
+    这才是「模块单测通过 ≈ 功能成立」的方向；对含真实环境的全集，一般不自动成立。
+  </p>
+
+  <h3><span class="tag">Feat⇒UT</span>反向：功能蕴含单测</h3>
+  <p>若系统已满足全部功能，则全部单测也应通过（要求单测完备、无假阳性）：</p>
+  <div class="eq">$$\Bigl(\forall r\in R:\ \mathrm{Sys}\models\mathrm{Acc}_r\Bigr) \;\implies\; \Bigl(\bigwedge_{u\in U}\mathrm{Pass}(u)\Bigr)$$</div>
+  <p class="after">与上式合取，才是严格的「单测集 ≡ 功能集通过」。</p>
+
+  <h3>把功能拆成可单测与环境绑定</h3>
+  <p>
+    将需求分成纯逻辑部分 $R_{\mathrm{pure}}$ 与依赖真实环境的部分 $R_{\mathrm{env}}$：
+  </p>
+  <div class="eq">$$R=R_{\mathrm{pure}}\cup R_{\mathrm{env}}$$</div>
+  <p class="after">
+    例如：$\mathrm{Gate::decide}$ 可归入 pure；真 WFP 丢包归入 env。
+  </p>
+
+  <h3><span class="tag">Q2-pure</span>纯功能上的蕴含</h3>
+  <p>
+    在纯功能子集上：能否构造单测集，使得「单测全绿 ⇒ 纯功能全部成立」？
+    （还需组装不偷偷改纯模块的输入输出关系。）
+  </p>
+  <div class="eq">$$\exists U_{\mathrm{pure}}: \bigwedge_{u\in U_{\mathrm{pure}}}\mathrm{Pass}(u) \;\implies\; \forall r\in R_{\mathrm{pure}}:\mathrm{Sys}\models\mathrm{Acc}_r$$</div>
+  <p class="after">在「纯核心 + 保守组合」的架构约束下，这一档可以成立——也是 AI 并行收工最有用的一档。</p>
+
+  <h3><span class="tag">Q2-env</span>环境功能需要额外假设</h3>
+  <p>
+    对环境相关功能，单测通过还不够，必须加上环境契约 $\psi$（例如「adapter 对真实端口的语义对齐」）：
+  </p>
+  <div class="eq">$$\bigwedge_{u}\mathrm{Pass}(u)\;\land\;\mathrm{Env}\models\psi \;\implies\; \forall r\in R_{\mathrm{env}}:\mathrm{Sys}\models\mathrm{Acc}_r$$</div>
+  <p class="after">因此：对全 $R$ 空口说「单测 ≡ 全功能」不成立；对 env 部分要写成「单测 ∧ 环境契约 ⇒ 功能」。</p>
+
+  <h3><span class="tag">Q2*</span>在可单测闭包上的等价</h3>
+  <p>
+    对纯功能闭包 $\overline{R}_{\mathrm{pure}}$，可以把目标写成双向等价
+    （⇒ 靠组合正确性，⇐ 靠单测完备）：
+  </p>
+  <div class="eq">$$\Bigl(\bigwedge_{u\in U}\mathrm{Pass}(u)\Bigr) \;\iff\; \Bigl(\forall r\in\overline{R}_{\mathrm{pure}}:\mathrm{Sys}\models\mathrm{Acc}_r\Bigr)$$</div>
+  <p class="after">AI 工程里应把模块标成 unit-complete 或 needs-env，只对前者宣称 Q2*。</p>
+
+  <h2>四、合取目标（给多 Agent 用）</h2>
+  <p>
+    同时要求：任意需求集都能被实现；业务插件出度有统一上界且互不依赖；
+    并且在纯功能子集上，单测通过能蕴含功能成立。
+  </p>
+  <div class="eq">
+  $$
+  \exists K,\mathcal{A}:\
+  \forall R\
+  \exists (M,E,U):\
+  \begin{cases}
+  \operatorname{implements}(R)\\[6pt]
+  \max_{p\in P}\mathrm{out}(p)\le K \;\land\; \mathsf{NoCross}\\[6pt]
+  UT\Rightarrow Feat \text{ on } R_{\mathrm{pure}}\ (\text{or } Q2*)
+  \end{cases}
+  $$
+  </div>
+  <p class="after">
+    其中 $\mathcal{A}$ 是架构约束（微内核、Ports Only、保守组装等）。
+    问题 1 约束的是依赖图形状；问题 2 约束的是测试语义与功能语义的关系——两者独立，合在一起才适合 AI 分工。
+  </p>
+</body>
+</html>

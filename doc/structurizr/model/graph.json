@@ -1,0 +1,37 @@
+{
+  "schema": "mcp-guard.graph.v1",
+  "description": "Machine-checkable dependency graph (target topology). Edge = depends-on / uses.",
+  "K": 2,
+  "nodes": [
+    { "id": "contracts", "role": "contracts", "path": "src/contracts.rs" },
+    { "id": "config", "role": "infra", "path": "src/config.rs" },
+    { "id": "ui_config", "role": "infra", "path": "ui/ (themes, layout TOML/JSON — data not a plugin)" },
+    { "id": "cli", "role": "compose", "path": "src/main.rs" },
+    { "id": "runtime", "role": "compose", "path": "src/serve.rs" },
+    { "id": "scan", "role": "plugin", "path": "src/scan.rs" },
+    { "id": "watch", "role": "plugin", "path": "src/watch.rs" },
+    { "id": "audit", "role": "plugin", "path": "src/audit.rs" },
+    { "id": "gate", "role": "plugin", "path": "src/gate (planned)", "status": "planned" },
+    { "id": "ui_shell", "role": "plugin", "path": "src/ui_shell (planned)", "status": "planned" }
+  ],
+  "edges": [
+    { "from": "scan", "to": "contracts", "kind": "implements" },
+    { "from": "watch", "to": "contracts", "kind": "implements" },
+    { "from": "audit", "to": "contracts", "kind": "implements" },
+    { "from": "gate", "to": "contracts", "kind": "implements" },
+    { "from": "ui_shell", "to": "contracts", "kind": "implements" },
+    { "from": "ui_shell", "to": "ui_config", "kind": "reads-config" },
+    { "from": "cli", "to": "runtime", "kind": "uses" },
+    { "from": "cli", "to": "config", "kind": "uses" },
+    { "from": "cli", "to": "scan", "kind": "wires" },
+    { "from": "cli", "to": "watch", "kind": "wires" },
+    { "from": "runtime", "to": "contracts", "kind": "dispatches" },
+    { "from": "runtime", "to": "config", "kind": "uses" }
+  ],
+  "notes": [
+    "Compose (cli/runtime) may wire plugins; plugin→plugin edges are forbidden.",
+    "ui_shell reads ui_config (infra data). Themes are files under ui/, not new graph nodes per skin.",
+    "UI as config/code: swap visuals via ui_config or replace ui_shell impl without raising scan/watch out-degree.",
+    "runtime dispatches via contracts (Scanner/Watcher/AlertSink); cli wires Default* adapters."
+  ]
+}

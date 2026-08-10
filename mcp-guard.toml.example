@@ -1,0 +1,20 @@
+# Example config — copy to mcp-guard.toml
+
+[scan]
+host = "127.0.0.1"
+ports = [50551, 52412, 3000, 8080]
+connect_timeout_ms = 400
+http_timeout_ms = 800
+# Raise EXPOSURE ALERT when CORS*/auth heuristics fire (not only audit)
+alert_on_exposure = true
+
+[audit]
+path = "mcp-guard-audit.jsonl"
+
+[serve]
+interval_secs = 30
+
+[gate]
+# Substring match on process name or exe path (case-insensitive)
+allow_process_names = ["mcp-guard", "WorkBuddy", "CodeBuddy", "node"]
+alert_on_unknown = true

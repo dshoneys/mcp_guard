@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>REQ-TRAY-UI preview</title>
+  <link rel="stylesheet" href="../../tokens.css" />
+  <style>
+    .stage {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+      background:
+        radial-gradient(ellipse at top, #1b2230, transparent 55%),
+        #0e1014;
+    }
+    .panel {
+      width: min(360px, 100%);
+      background: var(--mg-surface);
+      border-radius: var(--mg-radius);
+      border: 1px solid #333846;
+      overflow: hidden;
+      box-shadow: 0 18px 50px rgba(0,0,0,.45);
+    }
+    .panel header {
+      padding: .75rem 1rem;
+      font-size: .8rem;
+      color: var(--mg-muted);
+      border-bottom: 1px solid #333846;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--mg-ok);
+      display: inline-block;
+      margin-right: .4rem;
+    }
+    .dot.warn { background: var(--mg-warn); }
+    .dot.danger { background: var(--mg-danger); }
+    ul { list-style: none; margin: 0; padding: .35rem 0; }
+    li button {
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      color: var(--mg-text);
+      padding: .65rem 1rem;
+      font: inherit;
+      cursor: pointer;
+    }
+    li button:hover { background: #2c313c; }
+    li button .sub {
+      display: block;
+      font-size: .75rem;
+      color: var(--mg-muted);
+      margin-top: .15rem;
+    }
+    .hint {
+      margin-top: 1rem;
+      font-size: .8rem;
+      color: var(--mg-muted);
+      max-width: 360px;
+    }
+    .tabs { display: flex; gap: .5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .tabs button {
+      border: 1px solid #333846;
+      background: var(--mg-bg);
+      color: var(--mg-text);
+      border-radius: 999px;
+      padding: .35rem .75rem;
+      cursor: pointer;
+      font: inherit;
+      font-size: .8rem;
+    }
+    .tabs button.active { border-color: var(--mg-accent); color: var(--mg-accent); }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div>
+      <div class="tabs" role="tablist" aria-label="Preview states">
+        <button type="button" class="active" data-state="idle">Idle</button>
+        <button type="button" data-state="exposure">Exposure</button>
+        <button type="button" data-state="activity">Activity</button>
+      </div>
+      <div class="panel" data-widget="tray-menu" aria-label="Tray menu mock">
+        <header>
+          <span><span class="dot" id="status-dot"></span><span id="status-label">MCP Guard — OK</span></span>
+          <span>preview</span>
+        </header>
+        <ul>
+          <li><button type="button" data-action="open-audit">Open audit log<span class="sub">mcp-guard-audit.jsonl</span></button></li>
+          <li><button type="button" data-action="run-scan">Scan now</button></li>
+          <li><button type="button" data-action="mute">Mute alerts (1h)</button></li>
+          <li><button type="button" data-action="quit">Quit</button></li>
+        </ul>
+      </div>
+      <p class="hint">
+        Code-as-Design preview for <strong>REQ-TRAY-UI</strong>.
+        Tokens from <code>ui/tokens.css</code> ↔ <code>ui/default.toml</code>.
+        Not final OS tray chrome — interaction + states for review.
+      </p>
+    </div>
+  </div>
+  <script>
+    const copy = {
+      idle: { label: "MCP Guard — OK", cls: "" },
+      exposure: { label: "Exposure alert", cls: "warn" },
+      activity: { label: "Suspicious activity", cls: "danger" },
+    };
+    const dot = document.getElementById("status-dot");
+    const label = document.getElementById("status-label");
+    document.querySelectorAll(".tabs button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        const s = copy[btn.dataset.state];
+        label.textContent = s.label;
+        dot.className = "dot" + (s.cls ? " " + s.cls : "");
+      });
+    });
+  </script>
+</body>
+</html>

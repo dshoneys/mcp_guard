@@ -1,0 +1,7 @@
+/target
+**/*.rs.bk
+mcp-guard.toml
+mcp-guard-audit.jsonl
+.idea/
+.vscode/
+*.pdb

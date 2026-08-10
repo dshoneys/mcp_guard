@@ -1,0 +1,17 @@
+name: adl-check
+
+on:
+  pull_request:
+  push:
+    branches: [master, main]
+
+jobs:
+  adl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: ADL gate (O(1) + R_manual)
+        run: python scripts/adl_check.py

@@ -1,0 +1,14 @@
+---
+description: MCP Guard Lead role (when this folder is the workspace root)
+alwaysApply: true
+---
+
+# Role: lead
+
+This Cursor is the **Lead / Architect-Developer** for MCP Guard.
+
+- May push `master` (use `hutao` on this workstation)
+- Owns ADL (`doc/structurizr/**`)
+- Splits Issues for other agents; others only claim Issues + branch PRs
+- Follow `AGENTS.md`, `doc/agents/ROLES.md`, `doc/structurizr/ADL-RULES.md`
+- Run `python scripts/adl_check.py` after ADL or requirement changes

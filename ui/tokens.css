@@ -1,0 +1,21 @@
+/* Design tokens — keep names aligned with ui/default.toml (see mapping.md) */
+:root {
+  --mg-bg: #1a1d23;
+  --mg-surface: #242830;
+  --mg-text: #e8eaed;
+  --mg-muted: #9aa0a6;
+  --mg-ok: #3dd68c;
+  --mg-warn: #f5a524;
+  --mg-danger: #f31260;
+  --mg-accent: #6ea8fe;
+  --mg-radius: 8px;
+  --mg-font: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--mg-font);
+  background: #0e1014;
+  color: var(--mg-text);
+}

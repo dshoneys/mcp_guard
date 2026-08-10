@@ -1,0 +1,112 @@
+{
+  "schema": "mcp-guard.requirements.v1",
+  "description": "Feature set R. R_U = unit|contract with non-empty tests. R_manual = R \\ R_U. ui:true requires design gate.",
+  "requirements": [
+    {
+      "id": "REQ-SCAN-EXPOSURE",
+      "title": "Detect exploitable loopback MCP-like HTTP surfaces",
+      "component": "scan",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/scan_http_headers.rs"],
+      "acceptance": "Flags cors_star / no_www_authenticate_hint / known ports from fixtures"
+    },
+    {
+      "id": "REQ-SCAN-LIVE",
+      "title": "Probe real loopback ports when services are up",
+      "component": "scan",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "With WorkBuddy running, scan reports open 50551 and exposure_alert"
+    },
+    {
+      "id": "REQ-WATCH-ATTR",
+      "title": "Attribute TCP peers on watched ports to PID/process",
+      "component": "watch",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/watch_allowlist.rs"],
+      "acceptance": "Allowlist matching is pure; unknown_client classification from fixtures"
+    },
+    {
+      "id": "REQ-WATCH-LIVE",
+      "title": "Observe real connections to MCP ports",
+      "component": "watch",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "Browser/PoC hitting 50551 shows activity_alert for non-allowlisted process"
+    },
+    {
+      "id": "REQ-AUDIT-JSONL",
+      "title": "Persist alerts and scan/watch events as JSONL",
+      "component": "audit",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/audit_append.rs"],
+      "acceptance": "append writes valid JSON lines; creates parent dirs"
+    },
+    {
+      "id": "REQ-SERVE-LOOP",
+      "title": "Resident loop: scan + watch + audit on interval",
+      "component": "runtime",
+      "ui": false,
+      "test_kind": "contract",
+      "tests": ["tests/serve_once.rs"],
+      "acceptance": "serve --once emits scan and watch audit kinds without panic"
+    },
+    {
+      "id": "REQ-EXPOSURE-ALERT",
+      "title": "Raise EXPOSURE ALERT when risk_flags non-empty",
+      "component": "runtime",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/exposure_alert.rs"],
+      "acceptance": "Given a ScanReport with risk_flags, audit kind exposure_alert is written"
+    },
+    {
+      "id": "REQ-ACTIVITY-ALERT",
+      "title": "Raise ACTIVITY ALERT on unknown clients",
+      "component": "runtime",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/activity_alert.rs"],
+      "acceptance": "Given WatchReport.alert_count>0, audit kind activity_alert is written"
+    },
+    {
+      "id": "REQ-GATE-HARD",
+      "title": "Hard-block unknown clients on watched ports",
+      "component": "gate",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "PoC page cannot complete exfil while gate enabled (OS-specific)",
+      "status": "planned"
+    },
+    {
+      "id": "REQ-CONFIG-TOML",
+      "title": "Load mcp-guard.toml with scan/gate/serve/audit sections",
+      "component": "config",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/config_load.rs"],
+      "acceptance": "Missing file → defaults; invalid TOML → error"
+    },
+    {
+      "id": "REQ-TRAY-UI",
+      "title": "System tray agent: status, alerts, open audit",
+      "component": "ui_shell",
+      "ui": true,
+      "ux_path": "doc/ux/REQ-TRAY-UI",
+      "ux_status": "needed",
+      "ui_path": "doc/ui/REQ-TRAY-UI",
+      "ui_status": "needed",
+      "ui_impl": "hybrid",
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "After UX accepted + impl: tray reflects alerts; after UI accepted: visuals match mapping/config",
+      "status": "planned"
+    }
+  ]
+}

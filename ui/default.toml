@@ -1,0 +1,18 @@
+# Shared presentation tokens (UI as Config)
+# Keep key names aligned with ui/tokens.css and preview mapping.md
+
+[theme]
+name = "default"
+bg = "#1a1d23"
+surface = "#242830"
+text = "#e8eaed"
+muted = "#9aa0a6"
+ok = "#3dd68c"
+warn = "#f5a524"
+danger = "#f31260"
+accent = "#6ea8fe"
+
+[tray.copy]
+idle = "MCP Guard — OK"
+exposure = "Exposure alert"
+activity = "Suspicious activity"

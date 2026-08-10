@@ -1,0 +1,10 @@
+# Lead (Architect-Developer) — highest privilege
+* @shinjiyu
+
+# ADL — Lead only on master; others via PR reviewed by Lead
+/doc/structurizr/model/ @shinjiyu
+/doc/structurizr/workspace.dsl @shinjiyu
+/doc/structurizr/ADL-RULES.md @shinjiyu
+/doc/agents/ @shinjiyu
+/scripts/adl_check.py @shinjiyu
+/AGENTS.md @shinjiyu
