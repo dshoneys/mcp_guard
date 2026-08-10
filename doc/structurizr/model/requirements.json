@@ -53,8 +53,8 @@
       "component": "runtime",
       "ui": false,
       "test_kind": "contract",
-      "tests": ["tests/serve_once.rs"],
-      "acceptance": "serve --once emits scan and watch audit kinds without panic"
+      "tests": ["tests/serve_once.rs", "tests/serve_cancel.rs"],
+      "acceptance": "serve --once emits scan and watch; cancel flag stops loop promptly"
     },
     {
       "id": "REQ-EXPOSURE-ALERT",
@@ -99,14 +99,32 @@
       "component": "ui_shell",
       "ui": true,
       "ux_path": "doc/ux/REQ-TRAY-UI",
-      "ux_status": "needed",
+      "ux_status": "accepted",
       "ui_path": "doc/ui/REQ-TRAY-UI",
-      "ui_status": "needed",
+      "ui_status": "accepted",
       "ui_impl": "hybrid",
       "test_kind": "manual",
       "tests": [],
-      "acceptance": "After UX accepted + impl: tray reflects alerts; after UI accepted: visuals match mapping/config",
-      "status": "planned"
+      "acceptance": "Native tray reflects alerts; Open audit / Scan / Mute / Quit work on host OS",
+      "status": "in_progress"
+    },
+    {
+      "id": "REQ-STATUS-JSONL",
+      "title": "Derive alert snapshot from audit JSONL",
+      "component": "audit",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/status_snapshot.rs"],
+      "acceptance": "Counts exposure_alert/activity_alert; captures last_scan_at"
+    },
+    {
+      "id": "REQ-TRAY-MENU",
+      "title": "Tray menu model from status + ui copy",
+      "component": "ui_shell",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/tray_menu.rs"],
+      "acceptance": "idle/exposure/activity + mute map to labels and ordered actions"
     }
   ]
 }

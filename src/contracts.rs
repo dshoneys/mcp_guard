@@ -89,3 +89,50 @@ pub trait Watcher: Send + Sync {
 pub trait AlertSink: Send + Sync {
     fn append(&self, cfg: &AuditConfig, kind: &str, detail: Value) -> Result<()>;
 }
+
+/// Recent alert counts derived from the audit trail (for presentation).
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+pub struct AlertSnapshot {
+    pub exposure_count: usize,
+    pub activity_count: usize,
+    pub last_scan_at: Option<String>,
+}
+
+/// Read presentation inputs without depending on scan/watch plugins.
+pub trait StatusSource: Send + Sync {
+    fn snapshot(&self, audit_path: &std::path::Path) -> Result<AlertSnapshot>;
+}
+
+/// Tray / chrome severity (maps to UX states).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GuardSeverity {
+    Ok,
+    Warn,
+    Danger,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TrayActionId {
+    OpenAudit,
+    ScanNow,
+    Mute,
+    Quit,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct TrayMenuItem {
+    pub action: TrayActionId,
+    pub label: String,
+    pub subtitle: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct TrayMenuModel {
+    pub state_id: String,
+    pub severity: GuardSeverity,
+    pub header_label: String,
+    pub muted: bool,
+    pub items: Vec<TrayMenuItem>,
+}

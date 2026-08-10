@@ -6,6 +6,8 @@
 use crate::config::Config;
 use crate::contracts::{AlertSink, ScanReport, Scanner, WatchReport, Watcher};
 use anyhow::Result;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tracing::{info, warn};
 
 pub async fn run_with<S: Scanner, W: Watcher, A: AlertSink>(
@@ -15,6 +17,18 @@ pub async fn run_with<S: Scanner, W: Watcher, A: AlertSink>(
     watcher: &W,
     sink: &A,
 ) -> Result<()> {
+    run_with_cancel(cfg, once, scanner, watcher, sink, None).await
+}
+
+/// Same as [`run_with`], but stops when `cancel` is set (e.g. tray Quit).
+pub async fn run_with_cancel<S: Scanner, W: Watcher, A: AlertSink>(
+    cfg: &Config,
+    once: bool,
+    scanner: &S,
+    watcher: &W,
+    sink: &A,
+    cancel: Option<Arc<AtomicBool>>,
+) -> Result<()> {
     info!(
         interval_secs = cfg.serve.interval_secs,
         audit = %cfg.audit.path.display(),
@@ -22,98 +36,127 @@ pub async fn run_with<S: Scanner, W: Watcher, A: AlertSink>(
     );
 
     loop {
-        match scanner.scan(cfg, &[]).await {
-            Ok(report) => {
-                let open = open_services_summary(&report);
-                let exposures = collect_exposures(&report);
-
-                sink.append(
-                    &cfg.audit,
-                    "scan",
-                    serde_json::json!({
-                        "host": report.host,
-                        "open_services": open,
-                        "exposure_count": exposures.len(),
-                    }),
-                )?;
-
-                if should_raise_exposure_alert(&report, cfg.scan.alert_on_exposure) {
-                    sink.append(
-                        &cfg.audit,
-                        "exposure_alert",
-                        serde_json::json!({
-                            "host": report.host,
-                            "exposures": exposures,
-                            "message": "local MCP-like surface looks exploitable (config/CORS/auth heuristic)",
-                        }),
-                    )?;
-                    warn!(
-                        count = exposures.len(),
-                        host = %report.host,
-                        "EXPOSURE ALERT: exploitable local MCP surface detected"
-                    );
-                } else {
-                    info!(
-                        open = open.len(),
-                        exposures = exposures.len(),
-                        "scan complete"
-                    );
-                }
-            }
-            Err(err) => {
-                warn!(error = %err, "scan failed");
-                sink.append(
-                    &cfg.audit,
-                    "scan_error",
-                    serde_json::json!({ "error": err.to_string() }),
-                )?;
-            }
+        if cancel.as_ref().is_some_and(|c| c.load(Ordering::SeqCst)) {
+            info!("serve stopped (cancel)");
+            break;
         }
 
-        match watcher.watch(cfg) {
-            Ok(report) => {
-                sink.append(
-                    &cfg.audit,
-                    "watch",
-                    serde_json::json!({
-                        "alert_count": report.alert_count,
-                        "ports": report.ports,
-                    }),
-                )?;
-                if should_raise_activity_alert(&report) {
-                    sink.append(
-                        &cfg.audit,
-                        "activity_alert",
-                        serde_json::json!({
-                            "alert_count": report.alert_count,
-                            "message": "unknown process touching watched MCP ports",
-                            "ports": report.ports.iter().filter(|p| {
-                                p.peers.iter().any(|c| c.unknown_client)
-                            }).collect::<Vec<_>>(),
-                        }),
-                    )?;
-                    warn!(
-                        alerts = report.alert_count,
-                        "ACTIVITY ALERT: unknown process touching watched MCP ports"
-                    );
-                } else {
-                    info!(alerts = 0, "watch complete");
-                }
-            }
-            Err(err) => {
-                warn!(error = %err, "watch failed");
-                sink.append(
-                    &cfg.audit,
-                    "watch_error",
-                    serde_json::json!({ "error": err.to_string() }),
-                )?;
-            }
-        }
+        tick_once(cfg, scanner, watcher, sink).await?;
 
         if once {
             break;
         }
-        tokio::time::sleep(std::time::Duration::from_secs(cfg.serve.interval_secs)).await;
+
+        let interval = std::time::Duration::from_secs(cfg.serve.interval_secs.max(1));
+        let mut slept = std::time::Duration::ZERO;
+        let step = std::time::Duration::from_millis(200);
+        while slept < interval {
+            if cancel.as_ref().is_some_and(|c| c.load(Ordering::SeqCst)) {
+                info!("serve stopped (cancel during wait)");
+                return Ok(());
+            }
+            let chunk = step.min(interval - slept);
+            tokio::time::sleep(chunk).await;
+            slept += chunk;
+        }
+    }
+
+    Ok(())
+}
+
+/// One scan + watch + audit cycle (used by serve loop and tests).
+pub async fn tick_once<S: Scanner, W: Watcher, A: AlertSink>(
+    cfg: &Config,
+    scanner: &S,
+    watcher: &W,
+    sink: &A,
+) -> Result<()> {
+    match scanner.scan(cfg, &[]).await {
+        Ok(report) => {
+            let open = open_services_summary(&report);
+            let exposures = collect_exposures(&report);
+
+            sink.append(
+                &cfg.audit,
+                "scan",
+                serde_json::json!({
+                    "host": report.host,
+                    "open_services": open,
+                    "exposure_count": exposures.len(),
+                }),
+            )?;
+
+            if should_raise_exposure_alert(&report, cfg.scan.alert_on_exposure) {
+                sink.append(
+                    &cfg.audit,
+                    "exposure_alert",
+                    serde_json::json!({
+                        "host": report.host,
+                        "exposures": exposures,
+                        "message": "local MCP-like surface looks exploitable (config/CORS/auth heuristic)",
+                    }),
+                )?;
+                warn!(
+                    count = exposures.len(),
+                    host = %report.host,
+                    "EXPOSURE ALERT: exploitable local MCP surface detected"
+                );
+            } else {
+                info!(
+                    open = open.len(),
+                    exposures = exposures.len(),
+                    "scan complete"
+                );
+            }
+        }
+        Err(err) => {
+            warn!(error = %err, "scan failed");
+            sink.append(
+                &cfg.audit,
+                "scan_error",
+                serde_json::json!({ "error": err.to_string() }),
+            )?;
+        }
+    }
+
+    match watcher.watch(cfg) {
+        Ok(report) => {
+            sink.append(
+                &cfg.audit,
+                "watch",
+                serde_json::json!({
+                    "alert_count": report.alert_count,
+                    "ports": report.ports,
+                }),
+            )?;
+            if should_raise_activity_alert(&report) {
+                sink.append(
+                    &cfg.audit,
+                    "activity_alert",
+                    serde_json::json!({
+                        "alert_count": report.alert_count,
+                        "message": "unknown process touching watched MCP ports",
+                        "ports": report.ports.iter().filter(|p| {
+                            p.peers.iter().any(|c| c.unknown_client)
+                        }).collect::<Vec<_>>(),
+                    }),
+                )?;
+                warn!(
+                    alerts = report.alert_count,
+                    "ACTIVITY ALERT: unknown process touching watched MCP ports"
+                );
+            } else {
+                info!(alerts = 0, "watch complete");
+            }
+        }
+        Err(err) => {
+            warn!(error = %err, "watch failed");
+            sink.append(
+                &cfg.audit,
+                "watch_error",
+                serde_json::json!({ "error": err.to_string() }),
+            )?;
+        }
     }
 
     Ok(())

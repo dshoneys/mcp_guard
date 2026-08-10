@@ -4,33 +4,30 @@
 
 | 检查 | 结果 |
 |------|------|
-| `adl_check.py` 结构门禁 | ✅ 绿（无 hollow WARN） |
-| `cargo test` | ✅ |
-| contracts 调度 | ✅ `serve::run_with` + cli 接线 |
-| 文档与 UX/UI 字段一致 | ✅ |
+| `adl_check.py` | ✅ UX + UI accepted |
+| `cargo test` | ✅（含 serve cancel） |
+| Tray + agent | ✅ `tray` / `serve --tray` |
 
-## Ready
+## Shipped
 
-| 块 | 状态 |
+| 项 | 状态 |
 |----|------|
-| ADL + O(1) / NoCross / \(R_{\mathrm{manual}}\) | ✅ |
-| UX → 实现 → UI + Code-as-Design 预览 | ✅ |
-| Agent 角色 + Lead Cursor | ✅ |
-| Issue/PR/CI/CODEOWNERS | ✅ |
-| \(R_U\) 真实单测 / 合约测 | ✅ |
+| UX + UI REQ-TRAY-UI | ✅ accepted |
+| Native tray | ✅ Win/macOS |
+| Background agent under tray | ✅ Quit → cancel |
+| `serve::tick_once` / `run_with_cancel` | ✅ |
 
-## Open issues
+## Open / manual
 
-| 严重度 | 问题 |
-|--------|------|
-| 中 | GitHub branch protection 需在仓库 Settings 手动开启 |
-| 中 | `REQ-TRAY-UI`：有 HTML 预览样例，`doc/ux`/`doc/ui` 包仍 `needed` |
-| 中 | `ui_shell` 出度已 = K(2)，再加依赖会破 O(1) |
-| 低 | 嵌套在 kuroneko `experiments/` 下的独立 git；勿误提交进父仓 |
-| 低 | HTML 预览不能严格还原原生托盘（HITL / \(R_{\mathrm{manual}}\)） |
-| 低 | 尚无 import↔graph 自动漂移检查 |
+| 项 | 说明 |
+|----|------|
+| REQ-TRAY-UI 人测 | 托盘菜单 + 后台告警 |
+| Live scan/watch | WorkBuddy 环境 |
+| Hard gate | 未做 |
+| 开机自启 / 安装包 | 未做 |
 
-## Next product work
+## Next
 
-1. 开 `[UX] REQ-TRAY-UI` 填 `doc/ux/REQ-TRAY-UI/`
-2. 可选：import↔graph 漂移检查进 `adl_check.py`
+1. 人测托盘后 REQ-TRAY-UI → done  
+2. Windows 安装/自启脚本  
+3. Hard gate

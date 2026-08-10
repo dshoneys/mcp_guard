@@ -11,5 +11,5 @@ Target topology: **plugins → contracts (+ optional infra)**; **compose** wires
 | scan | plugin | `src/scan.rs` | contracts, config | `LoopbackScanner`; Env: loopback HTTP |
 | watch | plugin | `src/watch.rs` | contracts, config | `SoftWatcher`; Env: OS TCP/PID |
 | audit | plugin | `src/audit.rs` | contracts, config | `JsonlSink` |
-| ui_shell | plugin | planned | contracts, ui_config | Presentation; UI as config/code |
+| ui_shell | plugin | `src/ui_shell/` | contracts, ui_config | Menu model + native/console tray |
 | ui_config | infra | `ui/` | — | Theme/layout files (data) |

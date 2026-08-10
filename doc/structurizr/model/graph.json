@@ -12,7 +12,7 @@
     { "id": "watch", "role": "plugin", "path": "src/watch.rs" },
     { "id": "audit", "role": "plugin", "path": "src/audit.rs" },
     { "id": "gate", "role": "plugin", "path": "src/gate (planned)", "status": "planned" },
-    { "id": "ui_shell", "role": "plugin", "path": "src/ui_shell (planned)", "status": "planned" }
+    { "id": "ui_shell", "role": "plugin", "path": "src/ui_shell/" }
   ],
   "edges": [
     { "from": "scan", "to": "contracts", "kind": "implements" },

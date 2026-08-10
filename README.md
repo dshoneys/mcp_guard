@@ -65,9 +65,12 @@ Browser extensions are optional demos only — they cannot cover every client th
 | `mcp-guard scan` | ✅ |
 | `mcp-guard watch` | ✅ soft attribution |
 | `mcp-guard serve` | ✅ scan + watch + audit |
+| `mcp-guard serve --tray` | ✅ agent + native tray (Quit stops both) |
+| `mcp-guard status` | ✅ menu model + audit snapshot JSON |
+| `mcp-guard tray` | ✅ native tray + background agent ( `--no-agent` / `--console` ) |
 | Hard port/process block | ⏳ |
 | Path / tool policy | ⏳ |
-| Tray UI (Tauri) | ⏳ |
+| Native tray UI pack | ✅ UX+UI accepted；人测见 \(R_{\mathrm{manual}}\) |
 
 ## Build
 

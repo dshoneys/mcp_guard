@@ -94,14 +94,13 @@ workspace "MCP Guard" "Local agent: scan / watch / audit / (later) gate MCP tool
                     }
                 }
 
-                uiShell = container "UI shell" "Tray/window shell; reads ui config — planned" "Rust" {
-                    tags "Plugin" "Planned"
+                uiShell = container "UI shell" "Tray/window shell; reads ui config" "Rust" {
+                    tags "Plugin"
                     properties {
-                        "path" "src/ui_shell (planned)"
+                        "path" "src/ui_shell/"
                         "role" "plugin"
                         "horizon.intention" "Presentation only; UI as config/code"
                         "horizon.deps" "contracts + ui_config infra"
-                        "status" "planned"
                     }
                 }
             }

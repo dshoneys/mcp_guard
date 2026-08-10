@@ -5,4 +5,5 @@ pub mod config;
 pub mod contracts;
 pub mod scan;
 pub mod serve;
+pub mod ui_shell;
 pub mod watch;
