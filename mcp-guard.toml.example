@@ -18,3 +18,8 @@ interval_secs = 30
 # Substring match on process name or exe path (case-insensitive)
 allow_process_names = ["mcp-guard", "WorkBuddy", "CodeBuddy", "node"]
 alert_on_unknown = true
+
+[vault]
+store_path = "mcp-guard-vault.enc"
+key_path = "mcp-guard-vault.key"
+ref_ttl_secs = 600

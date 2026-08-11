@@ -9,7 +9,25 @@
       "ui": false,
       "test_kind": "unit",
       "tests": ["tests/scan_http_headers.rs"],
-      "acceptance": "Flags cors_star / no_www_authenticate_hint / known ports from fixtures"
+      "acceptance": "Flags cors_star / no_www_authenticate_hint / known ports from fixtures; bare TCP is not exposure"
+    },
+    {
+      "id": "REQ-SCAN-ENUMERATE",
+      "title": "Enumerate loopback/unspecified TCP listeners instead of port whitelist",
+      "component": "scan",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/scan_enumerate.rs"],
+      "acceptance": "discover_listeners merges live LISTEN ports; bind-addr filter is loopback|unspecified; extras from scan.ports still probed"
+    },
+    {
+      "id": "REQ-SCAN-MCP-TOOLS",
+      "title": "Probe tools/list; warn only on unprotected MCP surfaces",
+      "component": "scan",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/scan_mcp_tools.rs", "tests/scan_http_headers.rs"],
+      "acceptance": "No risk for plain HTTP; mcp_jsonrpc_surface / mcp_tools_exposed only when unauthenticated MCP probe succeeds; 401/403 not scored; parse SSE/JSON fixtures"
     },
     {
       "id": "REQ-SCAN-LIVE",
@@ -18,7 +36,7 @@
       "ui": false,
       "test_kind": "manual",
       "tests": [],
-      "acceptance": "With WorkBuddy running, scan reports open 50551 and exposure_alert"
+      "acceptance": "With WorkBuddy (or moved MCP port) listening, enumerate scan reports the live port and exposure when CORS/auth/MCP heuristics hit"
     },
     {
       "id": "REQ-WATCH-ATTR",
@@ -109,6 +127,21 @@
       "status": "in_progress"
     },
     {
+      "id": "REQ-MAIN-UI",
+      "title": "Main dashboard window: status, metrics, actions, feedback",
+      "component": "ui_shell",
+      "ui": true,
+      "ux_path": "doc/ux/REQ-MAIN-UI",
+      "ux_status": "accepted",
+      "ui_path": "doc/ui/REQ-MAIN-UI",
+      "ui_status": "accepted",
+      "ui_impl": "hybrid",
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "Open dashboard from tray/CLI; auto-scan once on startup; minimize/close hide to tray and tray restores window; Quit exits; Scan now shows scanning + toast + result strip",
+      "status": "in_progress"
+    },
+    {
       "id": "REQ-STATUS-JSONL",
       "title": "Derive alert snapshot from audit JSONL",
       "component": "audit",
@@ -125,6 +158,57 @@
       "test_kind": "unit",
       "tests": ["tests/tray_menu.rs"],
       "acceptance": "idle/exposure/activity + mute map to labels and ordered actions"
+    },
+    {
+      "id": "REQ-VAULT-STORE",
+      "title": "Encrypted secret store put/list/delete/resolve locally",
+      "component": "vault",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/vault_store.rs"],
+      "acceptance": "Roundtrip encrypt; list has no plaintext; resolve only via local API"
+    },
+    {
+      "id": "REQ-VAULT-NOCONTEXT",
+      "title": "MCP vault tools never return plaintext secrets",
+      "component": "vault",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/vault_mcp_nocontext.rs"],
+      "acceptance": "issue_ref/list/run payloads have no value field; scrubber redacts secret from stdout"
+    },
+    {
+      "id": "REQ-VAULT-MCP",
+      "title": "stdio MCP server vault-mcp for agents",
+      "component": "vault",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "Cursor mcp.json points at mcp-guard vault-mcp; tools usable; no secret in transcript"
+    },
+    {
+      "id": "REQ-VAULT-UI",
+      "title": "Dashboard vault manager: add/list/delete secrets",
+      "component": "ui_shell",
+      "ui": true,
+      "ux_path": "doc/ux/REQ-VAULT-UI",
+      "ux_status": "accepted",
+      "ui_path": "doc/ui/REQ-VAULT-UI",
+      "ui_status": "accepted",
+      "ui_impl": "hybrid",
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "UI can save secret without re-displaying plaintext; list names only",
+      "status": "in_progress"
+    },
+    {
+      "id": "REQ-I18N",
+      "title": "UI locale packs; default zh-CN for daily debug",
+      "component": "ui_shell",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/i18n_catalog.rs"],
+      "acceptance": "Default locale zh-CN; en pack loads; tray/dashboard/toast strings come from catalog; --locale overrides"
     }
   ]
 }

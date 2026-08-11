@@ -11,6 +11,7 @@ pub struct Config {
     pub audit: AuditConfig,
     pub serve: ServeConfig,
     pub gate: GateConfig,
+    pub vault: VaultConfig,
 }
 
 impl Default for Config {
@@ -20,6 +21,7 @@ impl Default for Config {
             audit: AuditConfig::default(),
             serve: ServeConfig::default(),
             gate: GateConfig::default(),
+            vault: VaultConfig::default(),
         }
     }
 }
@@ -27,10 +29,14 @@ impl Default for Config {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ScanConfig {
-    /// Loopback host to probe.
+    /// Loopback host used for connect/HTTP probes.
     pub host: String,
-    /// Default ports (WorkBuddy Ardot MCP uses 50551; Connector-like 52412).
+    /// When true (default), probe every TCP LISTEN on loopback/unspecified — not a fixed whitelist.
+    pub discover_listeners: bool,
+    /// Optional extra ports always probed (even if currently closed).
     pub ports: Vec<u16>,
+    /// Cap on probe set size after discover+extras merge.
+    pub max_probe_ports: usize,
     /// TCP connect timeout in milliseconds.
     pub connect_timeout_ms: u64,
     /// HTTP read timeout in milliseconds.
@@ -43,7 +49,9 @@ impl Default for ScanConfig {
     fn default() -> Self {
         Self {
             host: "127.0.0.1".into(),
-            ports: vec![50551, 52412, 3000, 8080],
+            discover_listeners: true,
+            ports: vec![],
+            max_probe_ports: 512,
             connect_timeout_ms: 400,
             http_timeout_ms: 800,
             alert_on_exposure: true,
@@ -100,6 +108,27 @@ impl Default for GateConfig {
                 "node".into(),
             ],
             alert_on_unknown: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct VaultConfig {
+    /// Encrypted secrets blob.
+    pub store_path: PathBuf,
+    /// 32-byte key file (created on first use).
+    pub key_path: PathBuf,
+    /// Default TTL for issued refs (seconds).
+    pub ref_ttl_secs: u64,
+}
+
+impl Default for VaultConfig {
+    fn default() -> Self {
+        Self {
+            store_path: PathBuf::from("mcp-guard-vault.enc"),
+            key_path: PathBuf::from("mcp-guard-vault.key"),
+            ref_ttl_secs: 600,
         }
     }
 }

@@ -1,15 +1,15 @@
 /* Design tokens — keep names aligned with ui/default.toml (see mapping.md) */
 :root {
-  --mg-bg: #1a1d23;
-  --mg-surface: #242830;
-  --mg-text: #e8eaed;
-  --mg-muted: #9aa0a6;
+  --mg-bg: #14171d;
+  --mg-surface: #1f2430;
+  --mg-text: #eef1f6;
+  --mg-muted: #9aa3b2;
   --mg-ok: #3dd68c;
   --mg-warn: #f5a524;
   --mg-danger: #f31260;
   --mg-accent: #6ea8fe;
-  --mg-radius: 8px;
-  --mg-font: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --mg-radius: 10px;
+  --mg-font: "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
 }
 
 * { box-sizing: border-box; }

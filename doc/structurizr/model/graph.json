@@ -11,6 +11,7 @@
     { "id": "scan", "role": "plugin", "path": "src/scan.rs" },
     { "id": "watch", "role": "plugin", "path": "src/watch.rs" },
     { "id": "audit", "role": "plugin", "path": "src/audit.rs" },
+    { "id": "vault", "role": "plugin", "path": "src/vault/" },
     { "id": "gate", "role": "plugin", "path": "src/gate (planned)", "status": "planned" },
     { "id": "ui_shell", "role": "plugin", "path": "src/ui_shell/" }
   ],
@@ -18,6 +19,8 @@
     { "from": "scan", "to": "contracts", "kind": "implements" },
     { "from": "watch", "to": "contracts", "kind": "implements" },
     { "from": "audit", "to": "contracts", "kind": "implements" },
+    { "from": "vault", "to": "contracts", "kind": "implements" },
+    { "from": "vault", "to": "config", "kind": "uses" },
     { "from": "gate", "to": "contracts", "kind": "implements" },
     { "from": "ui_shell", "to": "contracts", "kind": "implements" },
     { "from": "ui_shell", "to": "ui_config", "kind": "reads-config" },
@@ -25,6 +28,7 @@
     { "from": "cli", "to": "config", "kind": "uses" },
     { "from": "cli", "to": "scan", "kind": "wires" },
     { "from": "cli", "to": "watch", "kind": "wires" },
+    { "from": "cli", "to": "vault", "kind": "wires" },
     { "from": "runtime", "to": "contracts", "kind": "dispatches" },
     { "from": "runtime", "to": "config", "kind": "uses" }
   ],
@@ -32,6 +36,7 @@
     "Compose (cli/runtime) may wire plugins; plugin→plugin edges are forbidden.",
     "ui_shell reads ui_config (infra data). Themes are files under ui/, not new graph nodes per skin.",
     "UI as config/code: swap visuals via ui_config or replace ui_shell impl without raising scan/watch out-degree.",
-    "runtime dispatches via contracts (Scanner/Watcher/AlertSink); cli wires Default* adapters."
+    "runtime dispatches via contracts (Scanner/Watcher/AlertSink); cli wires Default* adapters.",
+    "vault NoContext: MCP never returns plaintext — see VAULT-NOCONTEXT.md."
   ]
 }

@@ -49,24 +49,24 @@ workspace "MCP Guard" "Local agent: scan / watch / audit / (later) gate MCP tool
             }
 
             group "L2 — plugins (out-degree O(1))" {
-                scanPlugin = container "Scan plugin" "Loopback HTTP probe; CORS/auth heuristics; exposure_alert" "Rust" {
+                scanPlugin = container "Scan plugin" "Enumerate loopback LISTEN + MCP tools/list probe; warn only on unprotected MCP" "Rust" {
                     tags "Plugin"
                     properties {
                         "path" "src/scan.rs"
                         "role" "plugin"
-                        "horizon.intention" "Detect exploitable local MCP-like surfaces"
-                        "horizon.deps" "contracts (+ config infra)"
+                        "horizon.intention" "Detect exploitable local MCP-like surfaces without fixed port whitelist"
+                        "horizon.deps" "contracts (+ config, net_enum infra)"
                         "test_kind" "unit+env"
                     }
                 }
 
-                watchPlugin = container "Watch plugin" "TCP→PID attribution; activity_alert" "Rust" {
+                watchPlugin = container "Watch plugin" "TCP→PID attribution on discovered listen ports; activity_alert" "Rust" {
                     tags "Plugin"
                     properties {
                         "path" "src/watch.rs"
                         "role" "plugin"
-                        "horizon.intention" "Attribute listeners/clients on watched ports"
-                        "horizon.deps" "contracts (+ config infra)"
+                        "horizon.intention" "Attribute listeners/clients on live MCP/loopback ports"
+                        "horizon.deps" "contracts (+ config, net_enum infra)"
                         "test_kind" "unit+env"
                     }
                 }
@@ -79,6 +79,17 @@ workspace "MCP Guard" "Local agent: scan / watch / audit / (later) gate MCP tool
                         "horizon.intention" "Persist scan/watch/alert events"
                         "horizon.deps" "contracts (+ config infra)"
                         "test_kind" "unit"
+                    }
+                }
+
+                vaultPlugin = container "Vault" "Encrypted secret store + NoContext MCP" "Rust" {
+                    tags "Plugin"
+                    properties {
+                        "path" "src/vault/"
+                        "role" "plugin"
+                        "horizon.intention" "Secrets at rest; MCP returns refs/runs only — never plaintext"
+                        "horizon.deps" "contracts + config"
+                        "test_kind" "unit+manual"
                     }
                 }
 
@@ -114,6 +125,15 @@ workspace "MCP Guard" "Local agent: scan / watch / audit / (later) gate MCP tool
                     }
                 }
 
+                netEnum = container "Net enum" "Loopback/unspecified TCP LISTEN discovery" "Rust" {
+                    tags "Infra"
+                    properties {
+                        "path" "src/net_enum.rs"
+                        "role" "infra"
+                        "horizon.intention" "Shared listen-port set for scan + watch"
+                    }
+                }
+
                 uiConfig = container "UI config files" "ui/*.toml tokens and copy — data not a plugin" "files" {
                     tags "Infra"
                     properties {
@@ -140,6 +160,8 @@ workspace "MCP Guard" "Local agent: scan / watch / audit / (later) gate MCP tool
             scanPlugin -> contracts "implements Scanner"
             watchPlugin -> contracts "implements Watcher"
             auditPlugin -> contracts "implements AlertSink"
+            vaultPlugin -> contracts "implements Vault ports"
+            vaultPlugin -> configMod "paths"
             gatePlugin -> contracts "implements Gate"
             uiShell -> contracts "implements UI ports"
             uiShell -> uiConfig "reads themes/copy"

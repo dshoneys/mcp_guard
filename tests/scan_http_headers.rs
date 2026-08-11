@@ -1,3 +1,4 @@
+use mcp_guard::contracts::McpProbe;
 use mcp_guard::scan::{classify_risks, parse_http_response, HttpProbe};
 
 #[test]
@@ -15,7 +16,7 @@ Access-Control-Allow-Origin: *\r\n\
 }
 
 #[test]
-fn classify_cors_star_and_no_auth_hint() {
+fn classify_cors_star_without_mcp_is_clean() {
     let http = HttpProbe {
         status_line: "HTTP/1.1 200 OK".into(),
         server: None,
@@ -23,20 +24,31 @@ fn classify_cors_star_and_no_auth_hint() {
         www_authenticate: None,
         body_snippet: String::new(),
     };
-    let flags = classify_risks(50551, Some(&http));
-    assert!(flags.contains(&"cors_star"));
-    assert!(flags.contains(&"no_www_authenticate_hint"));
-    assert!(flags.contains(&"known_workbuddy_ardot_port"));
+    let flags = classify_risks(50551, Some(&http), None);
+    assert!(flags.is_empty());
 }
 
 #[test]
-fn classify_tcp_open_without_http() {
-    let flags = classify_risks(8080, None);
-    assert_eq!(flags, vec!["tcp_open_non_http_or_timeout"]);
+fn classify_bare_tcp_is_not_exposure() {
+    let flags = classify_risks(8080, None, None);
+    assert!(flags.is_empty());
 }
 
 #[test]
-fn authenticate_header_suppresses_no_auth_hint() {
+fn classify_plain_http_is_not_warning() {
+    let http = HttpProbe {
+        status_line: "HTTP/1.1 200 OK".into(),
+        server: Some("nginx".into()),
+        access_control_allow_origin: None,
+        www_authenticate: None,
+        body_snippet: "<html>hi</html>".into(),
+    };
+    let flags = classify_risks(18080, Some(&http), None);
+    assert!(flags.is_empty());
+}
+
+#[test]
+fn authenticate_on_http_without_mcp_is_clean() {
     let http = HttpProbe {
         status_line: "HTTP/1.1 401 Unauthorized".into(),
         server: None,
@@ -44,7 +56,26 @@ fn authenticate_header_suppresses_no_auth_hint() {
         www_authenticate: Some("Bearer".into()),
         body_snippet: String::new(),
     };
-    let flags = classify_risks(3000, Some(&http));
-    assert!(!flags.contains(&"cors_star"));
+    let flags = classify_risks(3000, Some(&http), None);
+    assert!(flags.is_empty());
+}
+
+#[test]
+fn mcp_with_www_authenticate_skips_no_auth_hint() {
+    let http = HttpProbe {
+        status_line: "HTTP/1.1 200 OK".into(),
+        server: None,
+        access_control_allow_origin: Some("*".into()),
+        www_authenticate: Some("Bearer".into()),
+        body_snippet: String::new(),
+    };
+    let mcp = McpProbe {
+        endpoint: "/mcp".into(),
+        tool_count: 2,
+        sample_tools: vec!["a".into(), "b".into()],
+    };
+    let flags = classify_risks(3000, Some(&http), Some(&mcp));
+    assert!(flags.contains(&"mcp_tools_exposed"));
+    assert!(flags.contains(&"cors_star"));
     assert!(!flags.contains(&"no_www_authenticate_hint"));
 }

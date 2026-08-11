@@ -17,6 +17,10 @@
 
 **不**约束：`contracts` / `compose` 的入度（允许 \(O(n)\)）。
 
+### 3a. Vault NoContext（密钥）
+
+Vault MCP **禁止**在 tool result 中返回明文密钥。权威说明：[`VAULT-NOCONTEXT.md`](./VAULT-NOCONTEXT.md)。
+
 ## 2. 单测集与功能差集
 
 \[

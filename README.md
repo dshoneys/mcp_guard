@@ -1,5 +1,9 @@
 # MCP Guard
 
+<p align="center">
+  <img src="ui/brand/logo.png" alt="MCP Guard logo" width="160" />
+</p>
+
 Local agent that **scans**, **watches**, **audits**, and (later) **gates** MCP / agent tool-call surfaces on the machine.
 
 Repo: https://github.com/shinjiyu/mcp_guard
@@ -37,9 +41,10 @@ Multi-agent / O(1) rules live under [`doc/structurizr/`](doc/structurizr/README.
 ### Pipeline
 
 1. **Discover / probe (`scan`)**  
-   Connect to configured loopback ports, issue a minimal HTTP request, parse response headers.  
-   Risk flags today: `cors_star`, `no_www_authenticate_hint`, `known_workbuddy_ardot_port`.  
-   If `scan.alert_on_exposure` (default true): also **EXPOSURE ALERT** + audit `exposure_alert` (有洞就报，不只记).
+   Enumerate loopback listeners, HTTP fingerprint, then MCP `tools/list` probe.  
+   Risk flags only for **unprotected MCP**: `mcp_jsonrpc_surface`, `mcp_tools_exposed`  
+   (optional co-flags: `cors_star`, `no_www_authenticate_hint`, WorkBuddy pin).  
+   If `scan.alert_on_exposure` (default true): also **EXPOSURE ALERT** + audit `exposure_alert`.
 
 2. **Attribute (`watch`)**  
    Enumerate OS TCP tables (`netstat2`), map sockets → PID → process name/path (`sysinfo`).  
@@ -67,10 +72,27 @@ Browser extensions are optional demos only — they cannot cover every client th
 | `mcp-guard serve` | ✅ scan + watch + audit |
 | `mcp-guard serve --tray` | ✅ agent + native tray (Quit stops both) |
 | `mcp-guard status` | ✅ menu model + audit snapshot JSON |
-| `mcp-guard tray` | ✅ native tray + background agent ( `--no-agent` / `--console` ) |
+| `mcp-guard tray` | ✅ tray + main window + agent（默认中文；`--locale en`） |
+| `mcp-guard dashboard` | ✅ 仅主窗口（无托盘；日常用 `tray`） |
+| `mcp-guard vault` / `vault-mcp` | ✅ NoContext secret vault (refs + scrubbed runs) |
 | Hard port/process block | ⏳ |
 | Path / tool policy | ⏳ |
 | Native tray UI pack | ✅ UX+UI accepted；人测见 \(R_{\mathrm{manual}}\) |
+
+### Secret vault (NoContext)
+
+Agents must **not** receive plaintext secrets as MCP tool results (that would enter chat context). See [`doc/structurizr/VAULT-NOCONTEXT.md`](doc/structurizr/VAULT-NOCONTEXT.md).
+
+```bash
+mcp-guard vault put openai --value "sk-..."
+mcp-guard vault list
+mcp-guard vault issue-ref openai
+# Cursor / Claude Desktop mcp.json:
+# { "command": "mcp-guard", "args": ["vault-mcp"] }
+```
+
+Tools: `vault_list`, `vault_issue_ref`, `vault_ref_info`, `vault_run_with_secret` — **no** `vault_get`.
+
 
 ## Build
 

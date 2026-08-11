@@ -20,6 +20,8 @@
 
 UX **不要求**视觉预览；要求逻辑可评审。
 
+**强制：** 每个操作与严重度升级必须写清 **反馈通道**（toast / tooltip / 面板等）。只写菜单项、不写“点了之后人怎么知道成功/失败”，视为 UX 不完整，lead 不得 `accepted`。范例：[`doc/ux/REQ-TRAY-UI/feedback.md`](../ux/REQ-TRAY-UI/feedback.md)。
+
 ## ③ UI — 强制 Code as Design
 
 ### 规定工具链（锁定）

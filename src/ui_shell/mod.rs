@@ -2,9 +2,21 @@
 //! Depends on contracts + ui config files only (no scan/watch imports).
 
 #[cfg(any(windows, target_os = "macos"))]
+mod dashboard;
+mod brand;
+mod i18n;
+#[cfg(any(windows, target_os = "macos"))]
 mod native;
+#[cfg(windows)]
+mod win_process;
+pub use brand::brand_icon_rgba;
+#[cfg(any(windows, target_os = "macos"))]
+pub use dashboard::{run_dashboard, DashboardHooks, DashboardShowHandle};
+pub use i18n::{fmt_named, load_catalog, Catalog, DEFAULT_LOCALE};
 #[cfg(any(windows, target_os = "macos"))]
 pub use native::{run_native_tray, NativeTrayConfig, NativeTrayHooks};
+#[cfg(windows)]
+pub use win_process::{acquire_tray_singleton, detach_console};
 
 use crate::contracts::{
     AlertSnapshot, GuardSeverity, TrayActionId, TrayMenuItem, TrayMenuModel,
@@ -12,90 +24,126 @@ use crate::contracts::{
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct UiFileConfig {
-    #[serde(default)]
-    pub tray: TrayCopySection,
+#[derive(Debug, Clone)]
+pub struct UiBundle {
+    pub locale: String,
+    pub catalog: Catalog,
+    /// Path to ui config file if loaded (for diagnostics).
+    pub ui_path: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct TrayCopySection {
-    #[serde(default)]
-    pub copy: TrayCopy,
+impl Default for UiBundle {
+    fn default() -> Self {
+        let (locale, catalog) = load_catalog(DEFAULT_LOCALE).unwrap_or_else(|_| {
+            (DEFAULT_LOCALE.into(), Catalog::default())
+        });
+        Self {
+            locale,
+            catalog,
+            ui_path: None,
+        }
+    }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
+struct UiFileRaw {
+    #[serde(default)]
+    locale: Option<String>,
+    #[serde(default)]
+    tray: TrayCopySection,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+struct TrayCopySection {
+    #[serde(default)]
+    copy: TrayCopyOverrides,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+struct TrayCopyOverrides {
+    idle: Option<String>,
+    exposure: Option<String>,
+    activity: Option<String>,
+}
+
+/// Backward-compatible status labels (tests / callers that only need chrome text).
+#[derive(Debug, Clone)]
 pub struct TrayCopy {
-    #[serde(default = "default_idle")]
     pub idle: String,
-    #[serde(default = "default_exposure")]
     pub exposure: String,
-    #[serde(default = "default_activity")]
     pub activity: String,
 }
 
-fn default_idle() -> String {
-    "MCP Guard — OK".into()
-}
-fn default_exposure() -> String {
-    "Exposure alert".into()
-}
-fn default_activity() -> String {
-    "Suspicious activity".into()
+impl From<&Catalog> for TrayCopy {
+    fn from(c: &Catalog) -> Self {
+        Self {
+            idle: c.status.idle.clone(),
+            exposure: c.status.exposure.clone(),
+            activity: c.status.activity.clone(),
+        }
+    }
 }
 
 impl Default for TrayCopy {
     fn default() -> Self {
-        Self {
-            idle: default_idle(),
-            exposure: default_exposure(),
-            activity: default_activity(),
-        }
+        TrayCopy::from(&Catalog::default())
     }
 }
 
-impl Default for TrayCopySection {
-    fn default() -> Self {
-        Self {
-            copy: TrayCopy::default(),
-        }
-    }
-}
-
-impl Default for UiFileConfig {
-    fn default() -> Self {
-        Self {
-            tray: TrayCopySection::default(),
-        }
-    }
-}
-
-/// Load `ui/default.toml` (or override path). Missing file → built-in defaults.
-pub fn load_ui_config(explicit: Option<&Path>) -> Result<UiFileConfig> {
-    let path = explicit
+/// Load UI + locale catalog. `locale_override` wins over `ui/default.toml`.
+pub fn load_ui_bundle(
+    ui_path: Option<&Path>,
+    locale_override: Option<&str>,
+) -> Result<UiBundle> {
+    let path = ui_path
         .map(PathBuf::from)
         .or_else(|| {
             let p = PathBuf::from("ui/default.toml");
             p.exists().then_some(p)
+        })
+        .or_else(|| {
+            let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("ui/default.toml");
+            p.exists().then_some(p)
         });
-    match path {
-        None => Ok(UiFileConfig::default()),
+
+    let (file_locale, overrides, ui_path) = match path {
+        None => (None, TrayCopyOverrides::default(), None),
         Some(p) => {
             let raw = std::fs::read_to_string(&p)
                 .with_context(|| format!("read ui config {}", p.display()))?;
-            // File uses [tray.copy]; flatten via nested struct matching toml
-            #[derive(Deserialize)]
-            struct File {
-                #[serde(default)]
-                tray: TrayCopySection,
-            }
-            let f: File = toml::from_str(&raw)
+            let f: UiFileRaw = toml::from_str(&raw)
                 .with_context(|| format!("parse ui config {}", p.display()))?;
-            Ok(UiFileConfig { tray: f.tray })
+            (f.locale, f.tray.copy, Some(p))
         }
-    }
+    };
+
+    let locale = locale_override
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .or(file_locale.as_deref())
+        .unwrap_or(DEFAULT_LOCALE);
+
+    let (locale, mut catalog) = load_catalog(locale)?;
+    i18n::apply_tray_copy_overrides(
+        &mut catalog,
+        overrides.idle.as_deref(),
+        overrides.exposure.as_deref(),
+        overrides.activity.as_deref(),
+    );
+
+    Ok(UiBundle {
+        locale,
+        catalog,
+        ui_path,
+    })
+}
+
+/// Convenience: load with no locale override (file / zh-CN default).
+pub fn load_ui_config(explicit: Option<&Path>) -> Result<UiBundle> {
+    load_ui_bundle(explicit, None)
 }
 
 /// UX state id: idle | exposure | activity (mute forces idle chrome).
@@ -123,18 +171,18 @@ pub fn severity_for_state(state_id: &str) -> GuardSeverity {
 pub fn build_menu(
     snap: &AlertSnapshot,
     audit_path: &Path,
-    copy: &TrayCopy,
+    catalog: &Catalog,
     muted: bool,
 ) -> TrayMenuModel {
     let state_id = derive_state_id(snap, muted).to_string();
     let severity = severity_for_state(&state_id);
     let mut header_label = match state_id.as_str() {
-        "activity" => copy.activity.clone(),
-        "exposure" => copy.exposure.clone(),
-        _ => copy.idle.clone(),
+        "activity" => catalog.status.activity.clone(),
+        "exposure" => catalog.status.exposure.clone(),
+        _ => catalog.status.idle.clone(),
     };
     if muted {
-        header_label = format!("{header_label} (muted)");
+        header_label = format!("{header_label}{}", catalog.status.muted_suffix);
     }
 
     let basename = audit_path
@@ -149,23 +197,28 @@ pub fn build_menu(
         muted,
         items: vec![
             TrayMenuItem {
+                action: TrayActionId::OpenDashboard,
+                label: catalog.tray.open_dashboard.clone(),
+                subtitle: None,
+            },
+            TrayMenuItem {
                 action: TrayActionId::OpenAudit,
-                label: "Open audit log".into(),
+                label: catalog.tray.open_audit.clone(),
                 subtitle: Some(basename),
             },
             TrayMenuItem {
                 action: TrayActionId::ScanNow,
-                label: "Scan now".into(),
+                label: catalog.tray.scan_now.clone(),
                 subtitle: None,
             },
             TrayMenuItem {
                 action: TrayActionId::Mute,
-                label: "Mute alerts (1h)".into(),
+                label: catalog.tray.mute.clone(),
                 subtitle: None,
             },
             TrayMenuItem {
                 action: TrayActionId::Quit,
-                label: "Quit".into(),
+                label: catalog.tray.quit.clone(),
                 subtitle: None,
             },
         ],
@@ -228,3 +281,53 @@ pub fn print_status_json(model: &TrayMenuModel, snap: &AlertSnapshot) -> Result<
     println!("{}", serde_json::to_string_pretty(&out)?);
     Ok(())
 }
+
+/// Best-effort desktop toast (Windows / macOS / Linux). Failures are logged, not fatal.
+pub fn notify(summary: &str, body: &str) {
+    match notify_rust::Notification::new()
+        .appname("MCP Guard")
+        .summary(summary)
+        .body(body)
+        .show()
+    {
+        Ok(_) => {}
+        Err(err) => tracing::warn!(error = %err, "desktop notification failed"),
+    }
+}
+
+pub fn notify_scan_finished(catalog: &Catalog, open: usize, exposures: usize, activity: usize) {
+    let t = &catalog.toast;
+    if activity > 0 {
+        notify(
+            &t.scan_activity_title,
+            &fmt_named(&t.scan_activity_body, &[("n", &activity.to_string())]),
+        );
+    } else if exposures > 0 {
+        notify(
+            &t.scan_exposure_title,
+            &fmt_named(
+                &t.scan_exposure_body,
+                &[
+                    ("exposures", &exposures.to_string()),
+                    ("open", &open.to_string()),
+                ],
+            ),
+        );
+    } else {
+        notify(
+            &t.scan_ok_title,
+            &fmt_named(&t.scan_ok_body, &[("open", &open.to_string())]),
+        );
+    }
+}
+
+pub fn notify_severity_escalation(catalog: &Catalog, state_id: &str) {
+    let t = &catalog.toast;
+    match state_id {
+        "activity" => notify(&t.scan_activity_title, &t.escalation_activity_body),
+        "exposure" => notify(&t.scan_exposure_title, &t.escalation_exposure_body),
+        _ => {}
+    }
+}
+
+pub type SharedCatalog = Arc<Catalog>;

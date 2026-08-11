@@ -5,7 +5,7 @@
 
 use crate::config::{AuditConfig, Config};
 use anyhow::Result;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 // --- Scan DTOs ---
@@ -22,6 +22,9 @@ pub struct PortFinding {
     pub port: u16,
     pub open: bool,
     pub http: Option<HttpProbe>,
+    /// Present when JSON-RPC `tools/list` (or MCP-shaped response) succeeded.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp: Option<McpProbe>,
     pub risk_flags: Vec<&'static str>,
 }
 
@@ -32,6 +35,15 @@ pub struct HttpProbe {
     pub access_control_allow_origin: Option<String>,
     pub www_authenticate: Option<String>,
     pub body_snippet: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct McpProbe {
+    /// Path that answered (e.g. `/api/v1/mcp`).
+    pub endpoint: String,
+    pub tool_count: usize,
+    /// Up to a few tool names for the UI note.
+    pub sample_tools: Vec<String>,
 }
 
 // --- Watch DTOs ---
@@ -70,6 +82,48 @@ pub struct WatchReport {
 }
 
 // --- Ports ---
+
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+pub struct TickSummary {
+    pub open_services: usize,
+    pub exposures: usize,
+    pub activity_alerts: usize,
+    /// Structured risks for UI listing (not only counts).
+    #[serde(default)]
+    pub risks: Vec<RiskDetail>,
+}
+
+impl TickSummary {
+    pub fn has_risk(&self) -> bool {
+        self.exposures > 0 || self.activity_alerts > 0 || !self.risks.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RiskKind {
+    Exposure,
+    Activity,
+}
+
+/// One actionable risk line for the dashboard scan panel.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RiskDetail {
+    pub kind: RiskKind,
+    pub port: u16,
+    /// Listening / client process display name when known.
+    #[serde(default)]
+    pub app: String,
+    /// Human MCP / surface label (e.g. WorkBuddy ARDOT).
+    #[serde(default)]
+    pub mcp: String,
+    /// Machine flag codes; UI maps to locale descriptions.
+    #[serde(default)]
+    pub flags: Vec<String>,
+    /// Extra technical context (ACAO value, connection ends, etc.).
+    #[serde(default)]
+    pub note: String,
+}
 
 /// Loopback / MCP-like surface probe.
 pub trait Scanner: Send + Sync {
@@ -115,6 +169,7 @@ pub enum GuardSeverity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TrayActionId {
+    OpenDashboard,
     OpenAudit,
     ScanNow,
     Mute,

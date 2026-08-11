@@ -2,6 +2,8 @@
 **/*.rs.bk
 mcp-guard.toml
 mcp-guard-audit.jsonl
+mcp-guard-vault.enc
+mcp-guard-vault.key
 .idea/
 .vscode/
 *.pdb

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MCP Guard — Secret vault</title>
+  <link rel="stylesheet" href="../../tokens.css" />
+  <style>
+    :root { --pad: clamp(1.5rem, 4vw, 2.75rem); }
+    body {
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, #243044 0%, transparent 55%),
+        var(--mg-bg);
+      color: var(--mg-text);
+      font-family: var(--mg-font);
+    }
+    .shell {
+      max-width: 560px;
+      margin: 0 auto;
+      padding: var(--pad);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(1.5rem, 4vw, 2rem);
+      font-weight: 650;
+      letter-spacing: -0.03em;
+    }
+    .hint {
+      margin: 0;
+      color: var(--mg-muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .vault-form {
+      display: grid;
+      grid-template-columns: 1fr 1.4fr auto;
+      gap: 0.5rem;
+    }
+    .vault-form input {
+      border: 1px solid #333846;
+      background: var(--mg-surface);
+      color: var(--mg-text);
+      border-radius: var(--mg-radius);
+      padding: 0.65rem 0.75rem;
+      font: inherit;
+      font-size: 0.9rem;
+    }
+    .vault-form button {
+      border: 1px solid var(--mg-accent);
+      background: var(--mg-accent);
+      color: #0e1014;
+      border-radius: var(--mg-radius);
+      padding: 0.65rem 1rem;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .vault-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .vault-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.55rem 0;
+      border-bottom: 1px solid #2a2f3a;
+      font-size: 0.9rem;
+    }
+    .vault-list .name { font-weight: 600; }
+    .vault-list .when { color: var(--mg-muted); font-size: 0.78rem; margin-left: 0.5rem; }
+    .vault-list button {
+      border: 1px solid #333846;
+      background: transparent;
+      color: var(--mg-muted);
+      border-radius: var(--mg-radius);
+      padding: 0.35rem 0.65rem;
+      font: inherit;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .result { min-height: 1.4rem; color: var(--mg-muted); font-size: 0.9rem; }
+    .result[data-kind="ok"] { color: var(--mg-ok); }
+    .result[data-kind="error"] { color: var(--mg-danger); }
+    .note {
+      margin-top: auto;
+      padding-top: 1rem;
+      border-top: 1px solid #333846;
+      color: var(--mg-muted);
+      font-size: 0.8rem;
+    }
+    @media (max-width: 560px) {
+      .vault-form { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell" data-widget="vault">
+    <h1>Secret vault</h1>
+    <p class="hint">Agents use MCP refs — secrets never returned as tool plaintext. Production UI is embedded on the main dashboard.</p>
+    <form class="vault-form" id="vault-form" autocomplete="off">
+      <input id="vault-name" type="text" placeholder="Name" required maxlength="64" />
+      <input id="vault-value" type="password" placeholder="Secret (shown once)" required autocomplete="new-password" />
+      <button type="submit">Save</button>
+    </form>
+    <ul class="vault-list" id="vault-list"></ul>
+    <p class="result" id="result" data-kind=""></p>
+    <p class="note">Code-as-Design preview for REQ-VAULT-UI · also shipped in <code>ui/preview/REQ-MAIN-UI</code></p>
+  </div>
+  <script>
+    let secrets = [{ name: "openai", updated_at: "2026-08-10T12:00:00Z" }];
+
+    function render() {
+      const list = document.getElementById("vault-list");
+      list.innerHTML = "";
+      secrets.forEach((s) => {
+        const li = document.createElement("li");
+        li.innerHTML = `<div><span class="name"></span><span class="when"></span></div>`;
+        li.querySelector(".name").textContent = s.name;
+        li.querySelector(".when").textContent = s.updated_at;
+        const del = document.createElement("button");
+        del.type = "button";
+        del.textContent = "Delete";
+        del.onclick = () => {
+          secrets = secrets.filter((x) => x.name !== s.name);
+          document.getElementById("result").dataset.kind = "ok";
+          document.getElementById("result").textContent = `Deleted '${s.name}'`;
+          render();
+        };
+        li.appendChild(del);
+        list.appendChild(li);
+      });
+    }
+
+    document.getElementById("vault-form").onsubmit = (ev) => {
+      ev.preventDefault();
+      const name = document.getElementById("vault-name").value.trim();
+      const value = document.getElementById("vault-value").value;
+      if (!name || !value) return;
+      secrets = secrets.filter((x) => x.name !== name).concat([{
+        name,
+        updated_at: new Date().toISOString(),
+      }]).sort((a, b) => a.name.localeCompare(b.name));
+      document.getElementById("vault-name").value = "";
+      document.getElementById("vault-value").value = "";
+      document.getElementById("result").dataset.kind = "ok";
+      document.getElementById("result").textContent = `Saved '${name}' (value not shown)`;
+      render();
+    };
+
+    render();
+  </script>
+</body>
+</html>

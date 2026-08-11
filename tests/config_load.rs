@@ -6,7 +6,8 @@ use std::io::Write;
 fn missing_file_yields_defaults() {
     let cfg = config::load(None).unwrap();
     assert_eq!(cfg.scan.host, "127.0.0.1");
-    assert!(cfg.scan.ports.contains(&50551));
+    assert!(cfg.scan.discover_listeners);
+    assert!(cfg.scan.ports.is_empty());
     assert!(cfg.scan.alert_on_exposure);
 }
 

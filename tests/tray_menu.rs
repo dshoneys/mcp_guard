@@ -1,13 +1,9 @@
 use mcp_guard::contracts::{AlertSnapshot, GuardSeverity, TrayActionId};
 use mcp_guard::ui_shell::{
-    build_menu, derive_state_id, is_muted, mute_until_one_hour_from, TrayCopy,
+    build_menu, derive_state_id, is_muted, load_catalog, mute_until_one_hour_from,
 };
 use std::path::Path;
 use std::time::{Duration, SystemTime};
-
-fn copy() -> TrayCopy {
-    TrayCopy::default()
-}
 
 #[test]
 fn derive_priority_activity_over_exposure() {
@@ -27,19 +23,22 @@ fn menu_order_and_labels() {
         activity_count: 0,
         last_scan_at: None,
     };
-    let model = build_menu(&snap, Path::new("logs/mcp-guard-audit.jsonl"), &copy(), false);
+    let (_, cat) = load_catalog("en").unwrap();
+    let model = build_menu(&snap, Path::new("logs/mcp-guard-audit.jsonl"), &cat, false);
     assert_eq!(model.state_id, "exposure");
     assert_eq!(model.severity, GuardSeverity::Warn);
     assert_eq!(model.header_label, "Exposure alert");
-    assert_eq!(model.items.len(), 4);
-    assert_eq!(model.items[0].action, TrayActionId::OpenAudit);
+    assert_eq!(model.items.len(), 5);
+    assert_eq!(model.items[0].action, TrayActionId::OpenDashboard);
+    assert_eq!(model.items[0].label, "Open dashboard");
+    assert_eq!(model.items[1].action, TrayActionId::OpenAudit);
     assert_eq!(
-        model.items[0].subtitle.as_deref(),
+        model.items[1].subtitle.as_deref(),
         Some("mcp-guard-audit.jsonl")
     );
-    assert_eq!(model.items[1].action, TrayActionId::ScanNow);
-    assert_eq!(model.items[2].action, TrayActionId::Mute);
-    assert_eq!(model.items[3].action, TrayActionId::Quit);
+    assert_eq!(model.items[2].action, TrayActionId::ScanNow);
+    assert_eq!(model.items[3].action, TrayActionId::Mute);
+    assert_eq!(model.items[4].action, TrayActionId::Quit);
 }
 
 #[test]

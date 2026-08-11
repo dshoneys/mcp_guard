@@ -2,7 +2,7 @@
 
 use crate::contracts::{AlertSnapshot, GuardSeverity, TrayActionId};
 use crate::ui_shell::{
-    build_menu, is_muted, mute_until_one_hour_from, open_audit, TrayCopy,
+    build_menu, is_muted, mute_until_one_hour_from, notify_severity_escalation, open_audit, Catalog,
 };
 use anyhow::Result;
 use std::path::PathBuf;
@@ -11,7 +11,7 @@ use std::time::{Duration, Instant, SystemTime};
 use tao::event::{Event, StartCause};
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
-use tray_icon::{Icon, TrayIcon, TrayIconBuilder, TrayIconEvent};
+use tray_icon::{Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
 enum UserEvent {
     TrayIconEvent(#[allow(dead_code)] TrayIconEvent),
@@ -20,6 +20,7 @@ enum UserEvent {
 
 /// Hooks invoked on the tray event-loop thread (keep work short or spawn).
 pub struct NativeTrayHooks {
+    pub open_dashboard: Box<dyn FnMut() + Send>,
     pub scan_now: Box<dyn FnMut() -> Result<()> + Send>,
     /// Called when the user chooses Quit (stop background agent, etc.).
     pub on_quit: Box<dyn FnMut() + Send>,
@@ -27,9 +28,10 @@ pub struct NativeTrayHooks {
 
 pub struct NativeTrayConfig {
     pub audit_path: PathBuf,
-    pub copy: TrayCopy,
+    pub catalog: Arc<Catalog>,
     pub status: Box<dyn FnMut() -> Result<AlertSnapshot> + Send>,
     pub refresh_secs: u64,
+    pub mute_until: Arc<Mutex<Option<SystemTime>>>,
     pub hooks: NativeTrayHooks,
 }
 
@@ -45,13 +47,14 @@ pub fn run_native_tray(mut cfg: NativeTrayConfig) -> Result<()> {
         let _ = proxy.send_event(UserEvent::MenuEvent(event));
     }));
 
-    let mute_until: Arc<Mutex<Option<SystemTime>>> = Arc::new(Mutex::new(None));
+    let mute_until: Arc<Mutex<Option<SystemTime>>> = Arc::clone(&cfg.mute_until);
     let mut tray_icon: Option<TrayIcon> = None;
     let mut menu_items: Option<MenuItems> = None;
     let mut next_refresh = Instant::now();
+    let mut last_state = String::from("idle");
 
     let audit_path = cfg.audit_path.clone();
-    let copy = cfg.copy.clone();
+    let catalog = Arc::clone(&cfg.catalog);
     let mute_flag = Arc::clone(&mute_until);
 
     event_loop.run(move |event, _, control_flow| {
@@ -72,9 +75,17 @@ pub fn run_native_tray(mut cfg: NativeTrayConfig) -> Result<()> {
                         AlertSnapshot::default()
                     }
                 };
-                let model = build_menu(&snap, &audit_path, &copy, muted);
+                let model = build_menu(&snap, &audit_path, &catalog, muted);
+                if model.state_id != last_state {
+                    if matches!(model.state_id.as_str(), "exposure" | "activity")
+                        && last_state == "idle"
+                    {
+                        notify_severity_escalation(&catalog, &model.state_id);
+                    }
+                    last_state = model.state_id.clone();
+                }
                 let items = MenuItems::build(&model.header_label, &model.items);
-                let icon = icon_rgba(model.severity);
+                let icon = icon_brand_or_fallback(model.severity);
 
                 match &mut tray_icon {
                     Some(tray) => {
@@ -106,14 +117,27 @@ pub fn run_native_tray(mut cfg: NativeTrayConfig) -> Result<()> {
             Event::UserEvent(UserEvent::MenuEvent(event)) => {
                 let action = menu_items.as_ref().and_then(|m| m.action_for(&event.id));
                 match action {
+                    Some(TrayActionId::OpenDashboard) => {
+                        (cfg.hooks.open_dashboard)();
+                    }
                     Some(TrayActionId::OpenAudit) => {
                         if let Err(err) = open_audit(&audit_path) {
                             tracing::warn!(error = %err, "open audit failed");
                         }
                     }
                     Some(TrayActionId::ScanNow) => {
-                        if let Err(err) = (cfg.hooks.scan_now)() {
-                            tracing::warn!(error = %err, "tray scan failed");
+                        if let Some(tray) = tray_icon.as_ref() {
+                            let _ = tray.set_tooltip(Some("MCP Guard — Scanning…"));
+                        }
+                        match (cfg.hooks.scan_now)() {
+                            Ok(()) => {}
+                            Err(err) => {
+                                tracing::warn!(error = %err, "tray scan failed");
+                                crate::ui_shell::notify(
+                                    "MCP Guard — Scan failed",
+                                    &err.to_string(),
+                                );
+                            }
                         }
                         next_refresh = Instant::now();
                         *control_flow = ControlFlow::Poll;
@@ -133,7 +157,22 @@ pub fn run_native_tray(mut cfg: NativeTrayConfig) -> Result<()> {
                     None => {}
                 }
             }
-            Event::UserEvent(UserEvent::TrayIconEvent(_event)) => {}
+            Event::UserEvent(UserEvent::TrayIconEvent(event)) => {
+                let open = matches!(
+                    event,
+                    TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } | TrayIconEvent::DoubleClick {
+                        button: MouseButton::Left,
+                        ..
+                    }
+                );
+                if open {
+                    (cfg.hooks.open_dashboard)();
+                }
+            }
             Event::LoopDestroyed => {}
             _ => {}
         }
@@ -142,6 +181,7 @@ pub fn run_native_tray(mut cfg: NativeTrayConfig) -> Result<()> {
 
 struct MenuItems {
     menu: Menu,
+    dashboard: MenuItem,
     open: MenuItem,
     scan: MenuItem,
     mute: MenuItem,
@@ -152,6 +192,15 @@ impl MenuItems {
     fn build(header: &str, items: &[crate::contracts::TrayMenuItem]) -> Self {
         let menu = Menu::new();
         let header_item = MenuItem::new(header, false, None);
+        let dashboard = MenuItem::new(
+            items
+                .iter()
+                .find(|i| i.action == TrayActionId::OpenDashboard)
+                .map(|i| i.label.as_str())
+                .unwrap_or("Open dashboard"),
+            true,
+            None,
+        );
         let open = MenuItem::new(
             items
                 .iter()
@@ -191,6 +240,7 @@ impl MenuItems {
         let _ = menu.append_items(&[
             &header_item,
             &PredefinedMenuItem::separator(),
+            &dashboard,
             &open,
             &scan,
             &mute,
@@ -199,6 +249,7 @@ impl MenuItems {
         ]);
         Self {
             menu,
+            dashboard,
             open,
             scan,
             mute,
@@ -207,7 +258,9 @@ impl MenuItems {
     }
 
     fn action_for(&self, id: &tray_icon::menu::MenuId) -> Option<TrayActionId> {
-        if id == &self.open.id() {
+        if id == &self.dashboard.id() {
+            Some(TrayActionId::OpenDashboard)
+        } else if id == &self.open.id() {
             Some(TrayActionId::OpenAudit)
         } else if id == &self.scan.id() {
             Some(TrayActionId::ScanNow)
@@ -217,6 +270,22 @@ impl MenuItems {
             Some(TrayActionId::Quit)
         } else {
             None
+        }
+    }
+}
+
+fn icon_brand_or_fallback(severity: GuardSeverity) -> Icon {
+    match super::brand::brand_icon_rgba(32) {
+        Ok((rgba, w, h)) => match Icon::from_rgba(rgba, w, h) {
+            Ok(icon) => icon,
+            Err(err) => {
+                tracing::warn!(error = %err, "brand tray icon rejected; using fallback");
+                icon_rgba(severity)
+            }
+        },
+        Err(err) => {
+            tracing::warn!(error = %err, "brand tray icon load failed; using fallback");
+            icon_rgba(severity)
         }
     }
 }

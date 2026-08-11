@@ -11,22 +11,30 @@ Resident **system tray** (or equivalent host chrome) so the operator can see MCP
 
 ## Jobs to be done
 
-1. Know whether Guard is running and whether anything is wrong
+1. Know whether Guard is running and whether anything is wrong **without opening a terminal**
 2. Open the JSONL audit trail quickly
-3. Trigger an on-demand scan
+3. Trigger an on-demand scan **and perceive that it finished** (clear or risk)
 4. Temporarily mute alerts
 5. Quit the resident agent cleanly
+
+## Feedback (required)
+
+Silent success is a UX defect. See [`feedback.md`](./feedback.md):
+
+- Scan now always ends with an OS toast (clear / risk / error)
+- Tooltip shows `Scanning…` while work runs
+- Severity escalation (idle → risk) toasts once; icon/header hold persistent state
 
 ## Non-goals (this req)
 
 - Hard packet drop / OS firewall UI (REQ-GATE-HARD)
-- Full settings GUI (future)
+- Full settings / alert-detail window (future panel req)
 - Pixel-perfect native tray chrome in HTML preview (HITL / \(R_{\mathrm{manual}}\))
 
 ## Primary surface
 
-OS tray icon + context menu. States and actions must match [`ui/preview/REQ-TRAY-UI`](../../../ui/preview/REQ-TRAY-UI/index.html) logically (idle / exposure / activity).
+OS tray icon + context menu + **OS notifications**. Logical states match [`ui/preview/REQ-TRAY-UI`](../../../ui/preview/REQ-TRAY-UI/index.html) (idle / exposure / activity).
 
 ## Success
 
-After UX accepted + behavior implemented: menu reflects latest alert severity; Open audit / Scan now / Mute / Quit work; manual QA on a real OS tray.
+Menu reflects severity; Scan now and escalations are perceptible; Open audit / Mute / Quit work; manual QA on a real OS tray.

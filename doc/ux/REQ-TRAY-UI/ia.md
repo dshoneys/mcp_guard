@@ -22,3 +22,14 @@
 - Port list detail
 - Allowlist editor
 - Theme picker (tokens via `ui/` only)
+
+## Event feedback (not menu rows)
+
+| Event | Operator-visible channel |
+|-------|--------------------------|
+| Scan now started | Tray tooltip `Scanning…` |
+| Scan now finished | OS toast (always) |
+| idle → exposure/activity | OS toast once + icon/header |
+| Open audit failed | OS toast error |
+
+Details: [`feedback.md`](./feedback.md).

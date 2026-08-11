@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MCP Guard</title>
+  <link rel="stylesheet" href="../../tokens.css" />
+  <style>
+    :root {
+      --pad: 0.85rem 1.1rem 0.85rem;
+      --line: rgba(255, 255, 255, 0.08);
+      --lift: 0 8px 24px rgba(0, 0, 0, 0.28);
+      --titlebar-h: 44px;
+      --scroll-thumb: #3d4556;
+      --scroll-thumb-hover: #556074;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background:
+        radial-gradient(120% 80% at 100% -10%, rgba(110, 168, 254, 0.14), transparent 45%),
+        radial-gradient(90% 60% at -10% 110%, rgba(245, 165, 36, 0.08), transparent 40%),
+        var(--mg-bg);
+      color: var(--mg-text);
+      font-family: var(--mg-font);
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    /* Custom dark scrollbars (WebView2 / Chromium) */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--scroll-thumb) transparent;
+    }
+    *::-webkit-scrollbar { width: 10px; height: 10px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb {
+      background: var(--scroll-thumb);
+      border-radius: 999px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+    *::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); background-clip: padding-box; }
+    *::-webkit-scrollbar-corner { background: transparent; }
+
+    .shell {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .titlebar {
+      flex-shrink: 0;
+      height: var(--titlebar-h);
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0 0.35rem 0 0.75rem;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(28, 32, 40, 0.98), rgba(18, 21, 28, 0.96));
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+    .titlebar .title-ico {
+      width: 26px; height: 26px; border-radius: 7px;
+      object-fit: cover; flex-shrink: 0;
+      box-shadow: 0 0 0 1px var(--line);
+      -webkit-app-region: no-drag;
+    }
+    .titlebar .title-copy {
+      display: flex; flex-direction: column; gap: 0;
+      min-width: 0; flex: 1;
+    }
+    .titlebar .title-name {
+      font-weight: 700; font-size: 0.92rem; letter-spacing: -0.02em;
+      line-height: 1.15;
+    }
+    .titlebar .title-tag {
+      font-size: 0.68rem; color: var(--mg-muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .titlebar .chip {
+      -webkit-app-region: no-drag;
+      font-size: 0.72rem;
+      font-weight: 650;
+      padding: 0.22rem 0.55rem;
+      border-radius: 999px;
+      background: rgba(61, 214, 140, 0.12);
+      color: var(--mg-ok);
+      border: 1px solid rgba(61, 214, 140, 0.28);
+      max-width: 36%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .titlebar .chip[data-state="exposure"] {
+      background: rgba(245, 165, 36, 0.12);
+      color: var(--mg-warn);
+      border-color: rgba(245, 165, 36, 0.32);
+    }
+    .titlebar .chip[data-state="activity"] {
+      background: rgba(243, 18, 96, 0.12);
+      color: var(--mg-danger);
+      border-color: rgba(243, 18, 96, 0.32);
+    }
+    .titlebar .chip[data-state="scanning"] {
+      background: rgba(110, 168, 254, 0.14);
+      color: var(--mg-accent);
+      border-color: rgba(110, 168, 254, 0.35);
+    }
+    .win-controls {
+      display: flex;
+      align-items: stretch;
+      height: 100%;
+      margin-left: 0.25rem;
+      -webkit-app-region: no-drag;
+    }
+    .win-controls button {
+      width: 46px;
+      border: none;
+      background: transparent;
+      color: var(--mg-muted);
+      font: inherit;
+      font-size: 0.95rem;
+      line-height: 1;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+    }
+    .win-controls button:hover { background: rgba(255, 255, 255, 0.08); color: var(--mg-text); }
+    .win-controls button.close:hover { background: #e81123; color: #fff; }
+
+    .shell-body {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .view {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      padding: var(--pad);
+      gap: 0.65rem;
+    }
+    .view[hidden] { display: none !important; }
+
+    .summary-line {
+      flex-shrink: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.35rem 0.75rem;
+      font-size: 0.8rem;
+      color: var(--mg-muted);
+      line-height: 1.35;
+      padding: 0.55rem 0.7rem;
+      border-radius: 10px;
+      background: rgba(36, 40, 48, 0.65);
+      border: 1px solid var(--line);
+    }
+    .summary-line .hl {
+      font-weight: 700;
+      font-size: 0.92rem;
+      color: var(--mg-text);
+    }
+    .summary-line[data-kind="ok"] .hl { color: var(--mg-ok); }
+    .summary-line[data-kind="warn"] .hl { color: var(--mg-warn); }
+    .summary-line[data-kind="danger"] .hl,
+    .summary-line[data-kind="error"] .hl { color: var(--mg-danger); }
+    .summary-line[data-kind="scanning"] .hl { color: var(--mg-accent); }
+    .summary-line .counts { font-variant-numeric: tabular-nums; }
+    #scan-detail:empty { display: none; }
+
+    .risk-stage {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding-top: 0.15rem;
+    }
+    .risk-stage .risk-title {
+      flex-shrink: 0;
+      margin: 0 0 0.45rem;
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--mg-muted);
+    }
+    .risk-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+    .risk-list > li {
+      padding: 0.85rem 0.95rem;
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(42, 47, 58, 0.95), rgba(32, 36, 44, 0.95));
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--mg-warn);
+      box-shadow: var(--lift);
+    }
+    .risk-list > li[data-kind="activity"] { border-left-color: var(--mg-danger); }
+    .risk-list .rhead {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .risk-list .rapp {
+      font-weight: 700;
+      font-size: 1.08rem;
+      letter-spacing: -0.02em;
+      color: var(--mg-text);
+      min-width: 0;
+      word-break: break-word;
+    }
+    .risk-list .rkind {
+      flex-shrink: 0;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--mg-warn);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .risk-list > li[data-kind="activity"] .rkind { color: var(--mg-danger); }
+    .risk-list .rmcp {
+      margin-top: 0.3rem;
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--mg-accent);
+      line-height: 1.35;
+    }
+    .risk-list .rdesc {
+      margin: 0.5rem 0 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.32rem;
+    }
+    .risk-list .rdesc li {
+      padding: 0;
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      color: var(--mg-muted);
+      font-size: 0.82rem;
+      line-height: 1.45;
+      display: flex;
+      gap: 0.45rem;
+    }
+    .risk-list .rdesc li::before {
+      content: "";
+      width: 5px; height: 5px;
+      margin-top: 0.45em;
+      border-radius: 50%;
+      background: var(--mg-warn);
+      flex-shrink: 0;
+    }
+    .risk-list > li[data-kind="activity"] .rdesc li::before { background: var(--mg-danger); }
+    .risk-list .rnote {
+      margin-top: 0.45rem;
+      color: #7b8494;
+      font-size: 0.72rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      word-break: break-all;
+    }
+    .risk-empty {
+      margin: 0.75rem 0 0;
+      color: var(--mg-muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+      padding: 1rem;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      text-align: center;
+    }
+
+    .toolbar {
+      flex-shrink: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+      padding-top: 0.55rem;
+      border-top: 1px solid var(--line);
+    }
+    .toolbar button {
+      border: 1px solid #3a4150;
+      background: rgba(36, 40, 48, 0.9);
+      color: var(--mg-text);
+      border-radius: 10px;
+      padding: 0.5rem 0.85rem;
+      font: inherit;
+      font-size: 0.84rem;
+      cursor: pointer;
+      transition: filter 0.12s ease, border-color 0.12s ease;
+    }
+    .toolbar button.primary {
+      background: linear-gradient(180deg, #7eb4ff, var(--mg-accent));
+      border-color: transparent;
+      color: #0b1220;
+      font-weight: 700;
+      box-shadow: 0 6px 16px rgba(110, 168, 254, 0.28);
+    }
+    .toolbar button.ghost {
+      background: transparent;
+      border-color: #3a4150;
+      color: var(--mg-muted);
+    }
+    .toolbar button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .toolbar button:hover:not(:disabled) { filter: brightness(1.08); }
+    .toolbar button.ghost:hover:not(:disabled) {
+      color: var(--mg-text);
+      border-color: #5a6478;
+    }
+    .toolbar .spacer { flex: 1; }
+    .toolbar .plugins-btn {
+      border-color: rgba(110, 168, 254, 0.35);
+      color: var(--mg-accent);
+      background: rgba(110, 168, 254, 0.08);
+      font-weight: 650;
+    }
+    .note {
+      flex-shrink: 0;
+      min-height: 0;
+      margin: 0;
+      color: var(--mg-muted);
+      font-size: 0.78rem;
+    }
+    .note:empty { display: none; }
+    .note[data-kind="ok"] { color: var(--mg-ok); }
+    .note[data-kind="error"] { color: var(--mg-danger); }
+    .foot-meta {
+      flex-shrink: 0;
+      font-size: 0.68rem;
+      color: #667085;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .back {
+      border: none; background: transparent; color: var(--mg-muted);
+      font: inherit; font-size: 0.85rem; padding: 0; cursor: pointer; text-align: left;
+      width: fit-content;
+    }
+    .back:hover { color: var(--mg-text); }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .panel-head .hint {
+      margin: 0.35rem 0 0;
+      color: var(--mg-muted);
+      font-size: 0.82rem;
+      line-height: 1.4;
+    }
+
+    .plugin-grid {
+      list-style: none;
+      margin: 0.35rem 0 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      overflow: auto;
+      flex: 1;
+      min-height: 0;
+    }
+    .plugin-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.85rem;
+      padding: 0.95rem 1rem;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(42, 47, 58, 0.95), rgba(32, 36, 44, 0.95));
+      box-shadow: var(--lift);
+      text-align: left;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+      width: 100%;
+    }
+    .plugin-card:hover { border-color: rgba(110, 168, 254, 0.4); }
+    .plugin-card[disabled],
+    .plugin-card.is-soon {
+      cursor: default;
+      opacity: 0.72;
+    }
+    .plugin-card.is-soon:hover { border-color: var(--line); }
+    .plugin-ico {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: grid; place-items: center;
+      background: rgba(110, 168, 254, 0.14);
+      color: var(--mg-accent);
+      font-weight: 800;
+      font-size: 0.95rem;
+      flex-shrink: 0;
+    }
+    .plugin-card.is-soon .plugin-ico {
+      background: rgba(154, 160, 166, 0.12);
+      color: var(--mg-muted);
+    }
+    .plugin-body { flex: 1; min-width: 0; }
+    .plugin-body .ptitle {
+      display: flex; align-items: center; gap: 0.45rem;
+      font-weight: 700; font-size: 0.98rem;
+    }
+    .plugin-body .badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.12rem 0.4rem;
+      border-radius: 999px;
+      background: rgba(154, 160, 166, 0.16);
+      color: var(--mg-muted);
+    }
+    .plugin-body .pdesc {
+      margin-top: 0.28rem;
+      color: var(--mg-muted);
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+    .plugin-cta {
+      align-self: center;
+      color: var(--mg-accent);
+      font-size: 0.8rem;
+      font-weight: 650;
+      flex-shrink: 0;
+    }
+
+    .vault { display: flex; flex-direction: column; gap: 0.65rem; flex: 1; min-height: 0; }
+    .vault-form { display: grid; grid-template-columns: 1fr 1.3fr auto; gap: 0.4rem; }
+    .vault-form input {
+      border: 1px solid #333846; background: var(--mg-surface); color: var(--mg-text);
+      border-radius: 10px; padding: 0.55rem 0.65rem; font: inherit; font-size: 0.85rem;
+    }
+    .vault-form button {
+      border: 1px solid transparent; background: var(--mg-accent); color: #0e1014;
+      border-radius: 10px; padding: 0.55rem 0.85rem; font: inherit; font-weight: 700; cursor: pointer;
+    }
+    .vault-list { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; }
+    .vault-list li {
+      display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
+      padding: 0.55rem 0; border-bottom: 1px solid var(--line); font-size: 0.88rem;
+    }
+    .vault-list .name { font-weight: 600; }
+    .vault-list .when { color: var(--mg-muted); font-size: 0.75rem; margin-left: 0.4rem; }
+    .vault-list button {
+      border: 1px solid #333846; background: transparent; color: var(--mg-muted);
+      border-radius: 8px; padding: 0.3rem 0.55rem; font: inherit; font-size: 0.75rem; cursor: pointer;
+    }
+    .vault-empty { color: var(--mg-muted); font-size: 0.85rem; margin: 0; }
+    @media (max-width: 520px) {
+      .vault-form { grid-template-columns: 1fr; }
+      .topbar .chip { max-width: 38%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell" data-widget="main-dashboard">
+    <header class="titlebar" id="titlebar">
+      <img class="title-ico" src="../../brand/logo.png" alt="" width="26" height="26" />
+      <div class="title-copy">
+        <span class="title-name">MCP Guard</span>
+        <span class="title-tag" id="tagline">本地 MCP 表面哨兵</span>
+      </div>
+      <span class="chip" id="status" data-state="idle"><span id="status-label">正常</span></span>
+      <div class="win-controls">
+        <button type="button" id="btn-win-min" title="最小化" aria-label="最小化">─</button>
+        <button type="button" id="btn-win-max" title="最大化" aria-label="最大化">□</button>
+        <button type="button" class="close" id="btn-win-close" title="关闭" aria-label="关闭">×</button>
+      </div>
+    </header>
+
+    <div class="shell-body">
+    <div class="view" id="view-home">
+      <div class="summary-line" id="scan-panel" data-kind="idle" aria-live="polite">
+        <span class="hl" id="scan-headline">尚未扫描</span>
+        <span class="counts" id="scan-counts" hidden>
+          <span id="m-open">0</span> <span id="k-open">开放</span> ·
+          <span id="m-exp">0</span> <span id="k-exp">暴露</span> ·
+          <span id="m-act">0</span> <span id="k-act">活动</span>
+        </span>
+        <span id="status-meta">—</span>
+      </div>
+      <p class="note" id="scan-detail"></p>
+
+      <section class="risk-stage" id="risk-block" aria-labelledby="risks-title">
+        <p class="risk-title" id="risks-title">风险详情</p>
+        <ul class="risk-list" id="risk-list"></ul>
+        <p class="risk-empty" id="risk-empty">点「立即扫描」探测本地 MCP 表面。</p>
+      </section>
+
+      <p class="note" id="result" data-kind=""></p>
+
+      <div class="toolbar">
+        <button type="button" class="primary" data-action="scan" id="btn-scan">立即扫描</button>
+        <span class="spacer"></span>
+        <button type="button" class="plugins-btn" id="btn-open-plugins">扩展</button>
+      </div>
+      <div class="foot-meta"><span id="footer-text">托盘常驻</span> · <span id="audit-name">mcp-guard-audit.jsonl</span></div>
+    </div>
+
+    <div class="view" id="view-plugins" hidden>
+      <button type="button" class="back" id="btn-back-home">← 返回</button>
+      <header class="panel-head">
+        <h2 id="plugins-title">扩展</h2>
+        <p class="hint" id="plugins-hint">本地能力插件入口；后续会在这里继续增加。</p>
+      </header>
+      <ul class="plugin-grid" id="plugin-grid">
+        <li>
+          <button type="button" class="plugin-card" id="plugin-vault" data-plugin="vault">
+            <span class="plugin-ico" aria-hidden="true">钥</span>
+            <span class="plugin-body">
+              <span class="ptitle" id="plugin-vault-title">密钥保险箱</span>
+              <span class="pdesc" id="plugin-vault-desc">Agent 用引用取密，明文不进入模型上下文。</span>
+            </span>
+            <span class="plugin-cta" id="plugin-vault-cta">打开</span>
+          </button>
+        </li>
+        <li>
+          <button type="button" class="plugin-card is-soon" id="plugin-coming" disabled>
+            <span class="plugin-ico" aria-hidden="true">+</span>
+            <span class="plugin-body">
+              <span class="ptitle">
+                <span id="plugin-coming-title">更多扩展</span>
+                <span class="badge" id="plugin-coming-badge">即将推出</span>
+              </span>
+              <span class="pdesc" id="plugin-coming-desc">策略、门禁、报告等能力将陆续接入。</span>
+            </span>
+          </button>
+        </li>
+      </ul>
+    </div>
+
+    <div class="view" id="view-vault" hidden>
+      <button type="button" class="back" id="btn-back-plugins">← 返回扩展</button>
+      <section class="vault" data-widget="vault" aria-labelledby="vault-title">
+        <header class="panel-head">
+          <h2 id="vault-title">密钥保险箱</h2>
+          <p class="hint" id="vault-hint">Agent 通过 MCP 使用引用 — 密钥不会作为工具明文返回。</p>
+        </header>
+        <form class="vault-form" id="vault-form" autocomplete="off">
+          <input id="vault-name" name="name" type="text" placeholder="名称（如 openai）" required maxlength="64" />
+          <input id="vault-value" name="value" type="password" placeholder="密钥（仅显示一次）" required autocomplete="new-password" />
+          <button type="submit" id="vault-save">保存</button>
+        </form>
+        <ul class="vault-list" id="vault-list" aria-live="polite"></ul>
+        <p class="vault-empty" id="vault-empty">暂无密钥。</p>
+        <p class="note" id="vault-note" data-kind=""></p>
+      </section>
+    </div>
+    </div>
+  </div>
+  <script>
+    let i18n = {
+      status: {
+        idle: "正常",
+        exposure: "暴露告警",
+        activity: "可疑活动",
+        scanning: "扫描中…",
+        muted_suffix: "（弹窗已暂停）",
+      },
+      dashboard: {
+        tagline: "本地 MCP 表面哨兵",
+        last_scan: "扫描",
+        metric_open: "开放",
+        metric_exposure: "暴露",
+        metric_activity: "活动",
+        scan_now: "立即扫描",
+        open_audit: "打开日志",
+        open_audit_tip: "在资源管理器中定位扫描日志文件（仍会继续记录）",
+        mute: "暂停弹窗 1 小时",
+        mute_tip: "暂时不弹桌面通知；后台扫描与日志照常",
+        footer: "托盘常驻",
+        preview_scan_warn: "预览：演示暴露。",
+        preview_audit: "预览：打开扫描日志。",
+        preview_mute: "预览：桌面弹窗已暂停 1 小时。",
+        scan_panel_title: "扫描结果",
+        scan_panel_waiting: "尚未扫描",
+        scan_panel_scanning: "正在扫描…",
+        scan_panel_ok: "未发现新风险",
+        scan_panel_warn: "发现风险表面",
+        scan_panel_danger: "发现可疑活动",
+        scan_panel_error: "扫描失败",
+        open_plugins: "扩展",
+        open_vault: "密钥保险箱",
+        back_home: "返回",
+        back_plugins: "返回扩展",
+        risks_title: "风险详情",
+        risk_empty: "当前无风险项",
+        risk_app_unknown: "未知应用",
+        risk_kind_exposure: "暴露",
+        risk_kind_warn: "警告",
+        risk_kind_mcp: "进一步风险",
+        risk_kind_activity: "可疑连接",
+        risk_mcp_line: "{mcp} · 端口 {port}",
+      },
+      plugins: {
+        title: "扩展",
+        hint: "本地能力插件入口；后续会在这里继续增加。",
+        vault_title: "密钥保险箱",
+        vault_desc: "Agent 用引用取密，明文不进入模型上下文。",
+        coming_title: "更多扩展",
+        coming_desc: "策略、门禁、报告等能力将陆续接入。",
+        coming_badge: "即将推出",
+        open: "打开",
+      },
+      flags: {
+        cors_star: "CORS 允许任意来源（Access-Control-Allow-Origin: *），网页可跨域调用",
+        open_http_no_cors: "本机 HTTP 端口开放且未配置 CORS *（警告：仍可能被本机网页/进程访问）",
+        mcp_tools_exposed: "已探测到 MCP tools/list 且返回工具列表 — 进一步风险：本地工具面可被调用",
+        mcp_jsonrpc_surface: "探测到未保护的 MCP/JSON-RPC 接口（警告：可被本机调用）",
+        no_www_authenticate_hint: "响应未见 WWW-Authenticate，鉴权提示缺失（启发式）",
+        known_workbuddy_ardot_port: "命中已知 WorkBuddy ARDOT 端口，本地 MCP 表面可能被滥用",
+        tcp_open_non_http_or_timeout: "端口开放但 HTTP 探测失败或超时，表面状态不明",
+        unknown_client: "未知/未列入白名单的客户端正在连接该 MCP 端口",
+        unknown: "风险信号：{flag}",
+      },
+      vault: {
+        title: "密钥保险箱",
+        hint: "Agent 通过 MCP 使用引用 — 密钥不会作为工具明文返回。",
+        name_placeholder: "名称（如 openai）",
+        value_placeholder: "密钥（仅显示一次）",
+        save: "保存",
+        delete: "删除",
+        empty: "暂无密钥。",
+        confirm_delete: "删除密钥「{name}」？",
+        preview_saved: "预览：已保存「{name}」。",
+        preview_deleted: "预览：已删除「{name}」。",
+      },
+    };
+
+    let previewSecrets = [{ name: "demo-api", updated_at: "2026-08-10T12:00:00Z" }];
+
+    function fmt(tpl, vars) {
+      return Object.keys(vars || {}).reduce(
+        (s, k) => s.replaceAll("{" + k + "}", vars[k]),
+        tpl || ""
+      );
+    }
+
+    function shortTime(iso) {
+      if (!iso || iso === "—") return "—";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return String(iso).slice(0, 19);
+      return d.toLocaleString(undefined, {
+        month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+      });
+    }
+
+    function showView(id) {
+      document.getElementById("view-home").hidden = id !== "home";
+      document.getElementById("view-plugins").hidden = id !== "plugins";
+      document.getElementById("view-vault").hidden = id !== "vault";
+      if (id === "vault") postNative({ action: "vault-list" });
+    }
+
+    function applyI18n(pack) {
+      if (!pack) return;
+      i18n = {
+        status: Object.assign({}, i18n.status, pack.status || {}),
+        dashboard: Object.assign({}, i18n.dashboard, pack.dashboard || {}),
+        plugins: Object.assign({}, i18n.plugins || {}, pack.plugins || {}),
+        flags: Object.assign({}, i18n.flags || {}, pack.flags || {}),
+        vault: Object.assign({}, i18n.vault, pack.vault || {}),
+      };
+      const d = i18n.dashboard;
+      const p = i18n.plugins;
+      const v = i18n.vault;
+      document.getElementById("tagline").textContent = d.tagline || "";
+      document.getElementById("k-open").textContent = d.metric_open;
+      document.getElementById("k-exp").textContent = d.metric_exposure;
+      document.getElementById("k-act").textContent = d.metric_activity;
+      document.getElementById("btn-scan").textContent = d.scan_now;
+      document.getElementById("footer-text").textContent = d.footer;
+      document.getElementById("btn-open-plugins").textContent = d.open_plugins || p.title;
+      document.getElementById("btn-back-home").textContent = "← " + d.back_home;
+      document.getElementById("btn-back-plugins").textContent = "← " + (d.back_plugins || d.back_home);
+      document.getElementById("risks-title").textContent = d.risks_title;
+      document.getElementById("plugins-title").textContent = p.title;
+      document.getElementById("plugins-hint").textContent = p.hint;
+      document.getElementById("plugin-vault-title").textContent = p.vault_title;
+      document.getElementById("plugin-vault-desc").textContent = p.vault_desc;
+      document.getElementById("plugin-vault-cta").textContent = p.open;
+      document.getElementById("plugin-coming-title").textContent = p.coming_title;
+      document.getElementById("plugin-coming-desc").textContent = p.coming_desc;
+      document.getElementById("plugin-coming-badge").textContent = p.coming_badge;
+      document.getElementById("vault-title").textContent = v.title;
+      document.getElementById("vault-hint").textContent = v.hint;
+      document.getElementById("vault-name").placeholder = v.name_placeholder;
+      document.getElementById("vault-value").placeholder = v.value_placeholder;
+      document.getElementById("vault-save").textContent = v.save;
+      document.getElementById("vault-empty").textContent = v.empty;
+      const panel = document.getElementById("scan-panel");
+      if (panel.dataset.kind === "idle") {
+        document.getElementById("scan-headline").textContent = d.scan_panel_waiting;
+        document.getElementById("risk-empty").textContent =
+          "点「" + d.scan_now + "」探测本地 MCP 表面。";
+      }
+    }
+
+    function postNative(payload) {
+      if (window.ipc && typeof window.ipc.postMessage === "function") {
+        window.ipc.postMessage(JSON.stringify(payload));
+        return true;
+      }
+      if (window.mcpGuard && typeof window.mcpGuard.post === "function") {
+        window.mcpGuard.post(payload);
+        return true;
+      }
+      return false;
+    }
+
+    function applyStatus(s) {
+      const el = document.getElementById("status");
+      el.dataset.state = s.state_id || "idle";
+      let label = s.label || i18n.status[s.state_id] || i18n.status.idle;
+      label = label.replace(/^MCP Guard\s*[—\-–]\s*/i, "");
+      const suffix = s.muted_suffix || i18n.status.muted_suffix;
+      document.getElementById("status-label").textContent =
+        s.muted ? `${label}${suffix}` : label;
+      document.getElementById("status-meta").textContent =
+        (i18n.dashboard.last_scan || "扫描") + " " + shortTime(s.last_scan_at || "—");
+      if (s.audit_basename) {
+        document.getElementById("audit-name").textContent = s.audit_basename;
+      }
+    }
+
+    function setNote(kind, text) {
+      const r = document.getElementById("result");
+      r.dataset.kind = kind || "";
+      r.textContent = text || "";
+    }
+
+    function setVaultNote(kind, text) {
+      const r = document.getElementById("vault-note");
+      r.dataset.kind = kind || "";
+      r.textContent = text || "";
+    }
+
+    function flagText(code) {
+      const pack = i18n.flags || {};
+      if (pack[code]) return pack[code];
+      return fmt(pack.unknown || "{flag}", { flag: code });
+    }
+
+    function renderRisks(risks, kind) {
+      const list = document.getElementById("risk-list");
+      const empty = document.getElementById("risk-empty");
+      list.innerHTML = "";
+      const items = risks || [];
+      if (!items.length) {
+        empty.hidden = false;
+        if (kind === "scanning") {
+          empty.textContent = i18n.dashboard.scan_panel_scanning;
+        } else if (kind === "idle") {
+          empty.textContent =
+            "点「" + i18n.dashboard.scan_now + "」探测本地 MCP 表面。";
+        } else {
+          empty.textContent = i18n.dashboard.risk_empty;
+        }
+        return;
+      }
+      empty.hidden = true;
+      items.forEach((r) => {
+        const li = document.createElement("li");
+        const k = r.kind || "exposure";
+        li.dataset.kind = k;
+
+        const head = document.createElement("div");
+        head.className = "rhead";
+        const app = document.createElement("div");
+        app.className = "rapp";
+        app.textContent =
+          (r.app && String(r.app).trim()) || i18n.dashboard.risk_app_unknown || "未知应用";
+        const kindEl = document.createElement("div");
+        kindEl.className = "rkind";
+        const flags = (r.flags || []).filter(Boolean);
+        if (k === "activity") {
+          kindEl.textContent = i18n.dashboard.risk_kind_activity || "可疑连接";
+        } else if (flags.includes("mcp_tools_exposed")) {
+          kindEl.textContent = i18n.dashboard.risk_kind_mcp || "进一步风险";
+        } else if (flags.includes("mcp_jsonrpc_surface")) {
+          kindEl.textContent = i18n.dashboard.risk_kind_warn || "警告";
+        } else {
+          kindEl.textContent = i18n.dashboard.risk_kind_exposure || "暴露";
+        }
+        head.appendChild(app);
+        head.appendChild(kindEl);
+
+        const mcp = document.createElement("div");
+        mcp.className = "rmcp";
+        const mcpLabel =
+          (r.mcp && String(r.mcp).trim()) ||
+          (r.port != null ? ":" + r.port : "");
+        mcp.textContent = fmt(i18n.dashboard.risk_mcp_line || "{mcp} · 端口 {port}", {
+          mcp: mcpLabel,
+          port: String(r.port ?? ""),
+        });
+
+        li.appendChild(head);
+        li.appendChild(mcp);
+
+        if (flags.length) {
+          const ul = document.createElement("ul");
+          ul.className = "rdesc";
+          flags.forEach((code) => {
+            const item = document.createElement("li");
+            item.textContent = flagText(code);
+            ul.appendChild(item);
+          });
+          li.appendChild(ul);
+        }
+
+        if (r.note) {
+          const note = document.createElement("div");
+          note.className = "rnote";
+          note.textContent = r.note;
+          li.appendChild(note);
+        }
+
+        list.appendChild(li);
+      });
+    }
+
+    function applyScanResult(r) {
+      const panel = document.getElementById("scan-panel");
+      const counts = document.getElementById("scan-counts");
+      const kind = (r && r.kind) || "idle";
+      panel.dataset.kind = kind;
+      document.getElementById("scan-headline").textContent =
+        (r && r.headline) || i18n.dashboard.scan_panel_waiting;
+      document.getElementById("scan-detail").textContent = (r && r.detail) || "";
+      if (kind === "ok" || kind === "warn" || kind === "danger") {
+        counts.hidden = false;
+        document.getElementById("m-open").textContent = r.open_services ?? 0;
+        document.getElementById("m-exp").textContent = r.exposure_count ?? 0;
+        document.getElementById("m-act").textContent = r.activity_count ?? 0;
+      } else {
+        counts.hidden = true;
+      }
+      renderRisks((r && r.risks) || [], kind);
+    }
+
+    function setScanning(on) {
+      document.getElementById("btn-scan").disabled = !!on;
+      if (on) {
+        document.getElementById("status").dataset.state = "scanning";
+        document.getElementById("status-label").textContent = i18n.status.scanning;
+        applyScanResult({
+          kind: "scanning",
+          headline: i18n.dashboard.scan_panel_scanning,
+        });
+      }
+    }
+
+    function clearVaultForm() {
+      document.getElementById("vault-name").value = "";
+      document.getElementById("vault-value").value = "";
+    }
+
+    function applyVault(payload) {
+      const secrets = (payload && payload.secrets) || [];
+      const list = document.getElementById("vault-list");
+      const empty = document.getElementById("vault-empty");
+      list.innerHTML = "";
+      secrets.forEach((s) => {
+        const li = document.createElement("li");
+        const left = document.createElement("div");
+        const name = document.createElement("span");
+        name.className = "name";
+        name.textContent = s.name;
+        const when = document.createElement("span");
+        when.className = "when";
+        when.textContent = s.updated_at || "";
+        left.appendChild(name);
+        left.appendChild(when);
+        const del = document.createElement("button");
+        del.type = "button";
+        del.textContent = i18n.vault.delete;
+        del.addEventListener("click", () => {
+          if (!confirm(fmt(i18n.vault.confirm_delete, { name: s.name }))) return;
+          if (!postNative({ action: "vault-delete", name: s.name })) {
+            previewSecrets = previewSecrets.filter((x) => x.name !== s.name);
+            applyVault({ secrets: previewSecrets });
+            setVaultNote("ok", fmt(i18n.vault.preview_deleted, { name: s.name }));
+          }
+        });
+        li.appendChild(left);
+        li.appendChild(del);
+        list.appendChild(li);
+      });
+      empty.hidden = secrets.length > 0;
+    }
+
+    document.querySelectorAll("[data-action]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const a = btn.dataset.action;
+        if (a === "scan") {
+          setScanning(true);
+          setNote("", "");
+          if (!postNative({ action: a })) {
+            setTimeout(() => {
+              setScanning(false);
+              applyStatus({
+                state_id: "exposure",
+                label: i18n.status.exposure,
+                last_scan_at: new Date().toISOString(),
+                muted: false,
+              });
+              applyScanResult({
+                kind: "warn",
+                headline: i18n.dashboard.scan_panel_warn,
+                open_services: 1,
+                exposure_count: 1,
+                activity_count: 0,
+                risks: [{
+                  kind: "exposure",
+                  port: 50551,
+                  app: "WorkBuddy.exe",
+                  mcp: "WorkBuddy ARDOT MCP",
+                  flags: ["cors_star", "no_www_authenticate_hint", "known_workbuddy_ardot_port"],
+                  note: "ACAO=*",
+                }],
+              });
+            }, 700);
+          }
+          return;
+        }
+        if (!postNative({ action: a })) {
+          /* preview stubs for tray-only actions kept out of the home toolbar */
+        }
+      });
+    });
+
+    document.getElementById("btn-open-plugins").addEventListener("click", () => showView("plugins"));
+    document.getElementById("btn-back-home").addEventListener("click", () => showView("home"));
+    document.getElementById("btn-back-plugins").addEventListener("click", () => showView("plugins"));
+    document.getElementById("plugin-vault").addEventListener("click", () => showView("vault"));
+
+    document.getElementById("btn-win-min").addEventListener("click", () => {
+      postNative({ action: "window-minimize" });
+    });
+    document.getElementById("btn-win-max").addEventListener("click", () => {
+      postNative({ action: "window-maximize" });
+    });
+    document.getElementById("btn-win-close").addEventListener("click", () => {
+      postNative({ action: "window-close" });
+    });
+    document.getElementById("titlebar").addEventListener("dblclick", (ev) => {
+      if (ev.target.closest(".win-controls, .chip, button, a")) return;
+      postNative({ action: "window-maximize" });
+    });
+
+    document.getElementById("vault-form").addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      const name = document.getElementById("vault-name").value.trim();
+      const value = document.getElementById("vault-value").value;
+      if (!name || !value) return;
+      if (!postNative({ action: "vault-put", name, value })) {
+        previewSecrets = previewSecrets
+          .filter((x) => x.name !== name)
+          .concat([{ name, updated_at: new Date().toISOString() }])
+          .sort((a, b) => a.name.localeCompare(b.name));
+        clearVaultForm();
+        applyVault({ secrets: previewSecrets });
+        setVaultNote("ok", fmt(i18n.vault.preview_saved, { name }));
+      } else {
+        clearVaultForm();
+      }
+    });
+
+    window.mcpGuardApply = applyStatus;
+    window.mcpGuardResult = setNote;
+    window.mcpGuardScanning = setScanning;
+    window.mcpGuardScanResult = applyScanResult;
+    window.mcpGuardVaultApply = applyVault;
+    window.mcpGuardVaultClearForm = clearVaultForm;
+    window.mcpGuardI18n = applyI18n;
+
+    applyI18n(i18n);
+    applyStatus({
+      state_id: "idle",
+      last_scan_at: null,
+      muted: false,
+      audit_basename: "mcp-guard-audit.jsonl",
+    });
+    applyScanResult({ kind: "idle", headline: i18n.dashboard.scan_panel_waiting });
+    applyVault({ secrets: previewSecrets });
+    showView("home");
+  </script>
+</body>
+</html>

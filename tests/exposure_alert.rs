@@ -16,6 +16,7 @@ fn report_with_flags(flags: Vec<&'static str>) -> ScanReport {
                 body_snippet: String::new(),
             }),
             risk_flags: flags,
+            mcp: None,
         }],
     }
 }

@@ -2,12 +2,12 @@
 
 Themes, layout slots, copy keys. Consumed by `ui_shell` only.
 
-Example (planned):
-
 ```text
 ui/
+  brand/logo.png   # mark (tray/README); no text lockup yet
   default.toml
-  dense.toml
+  tokens.css
+  preview/
 ```
 
 Business plugins must not read these files.

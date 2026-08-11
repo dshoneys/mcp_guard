@@ -1,5 +1,8 @@
 # Shared presentation tokens (UI as Config)
 # Keep key names aligned with ui/tokens.css and preview mapping.md
+# Daily debug default locale: zh-CN (see doc/structurizr/I18N.md)
+
+locale = "zh-CN"
 
 [theme]
 name = "default"
@@ -12,7 +15,6 @@ warn = "#f5a524"
 danger = "#f31260"
 accent = "#6ea8fe"
 
-[tray.copy]
-idle = "MCP Guard — OK"
-exposure = "Exposure alert"
-activity = "Suspicious activity"
+# Optional overrides for status chrome (else taken from ui/i18n/{locale}.toml)
+# [tray.copy]
+# idle = "…"

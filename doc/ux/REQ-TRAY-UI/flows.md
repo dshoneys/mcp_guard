@@ -7,26 +7,32 @@ flowchart TD
   poll --> render[Update tray icon + menu labels]
   render --> wait{User action?}
   wait -->|Open audit| open[Reveal audit JSONL path]
-  wait -->|Scan now| scan[Invoke Scanner once]
-  wait -->|Mute 1h| mute[Set mute_until]
-  wait -->|Quit| quit[Stop loop + exit]
+  wait -->|Scan now| scanning[Tooltip Scanning]
+  scanning --> scan[Invoke Scanner+Watcher tick]
+  scan --> toastScan[Toast result always]
+  toastScan --> poll
+  wait -->|Mute 1h| mute[Set mute_until + optional toast]
+  wait -->|Quit| quit[Cancel agent + exit]
   open --> poll
-  scan --> poll
   mute --> poll
   poll -->|interval| poll
+  poll -->|idle to risk| toastEsc[Toast escalation once]
+  toastEsc --> render
 ```
 
 ```mermaid
 sequenceDiagram
+  participant Op as Operator
   participant Tray as ui_shell
   participant Ports as contracts
   participant Src as StatusSource
   participant Scan as Scanner
+  Op->>Tray: Scan now
+  Tray->>Tray: tooltip Scanning…
+  Tray->>Scan: scan + watch tick
+  Scan-->>Tray: TickSummary
+  Tray->>Tray: OS toast (clear OR risk OR error)
   Tray->>Src: latest_status()
   Src-->>Tray: GuardStatus
-  Tray->>Tray: map severity → copy/icon
-  Note over Tray: User: Scan now
-  Tray->>Scan: scan(cfg, [])
-  Scan-->>Tray: ScanReport
-  Tray->>Ports: AlertSink.append(scan/…)
+  Tray->>Tray: icon + header
 ```
