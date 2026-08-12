@@ -1,14 +1,14 @@
-# Lab scripts for arXiv:2608.09867 (optional)
+# Lab scripts — run via run_repro.py after copying config.example.toml → config.toml
 
-**Playbook (中文步骤):** [`../REPRO-PLAN.md`](../REPRO-PLAN.md)
+| File | Role |
+|------|------|
+| `config.example.toml` | Desensitized URL/key placeholders |
+| `config.toml` | Local secrets (**gitignored**) |
+| `run_repro.py` | Entrypoint: demo / critical / github / decode / all |
+| `repro_critical.py` | Marker control experiment (real decrypt proof) |
+| `scan_reasoning_blobs.py` | Local detectors |
+| `scan_github.py` | GitHub Code Search sample |
+| `decode_past_turn.py` | past_turn decode |
+| `config_loader.py` | Shared config loader |
 
-These Python helpers are for **offline detection** and **authorized API replay**.
-They are not required to use `mcp-guard git-scan`.
-
-| Script | Role | Phase |
-|--------|------|-------|
-| `scan_reasoning_blobs.py` | Local detectors + demo fixture | A1–A2 |
-| `scan_github.py` | GitHub Code Search sampling (needs token) | A3 |
-| `decode_past_turn.py` | PocketCity past_turn decode (needs LOCALMODULE_*) | C |
-
-Do not commit live signatures, API keys, or full foreign decrypt dumps into this folder.
+No GitCode account required. See `../REPRO-PLAN.md`.

@@ -91,11 +91,29 @@ def token_from_gcm() -> str | None:
 
 
 def token() -> str | None:
-    return (
+    env = (
         os.environ.get("GH_TOKEN")
         or os.environ.get("GITHUB_TOKEN")
         or token_from_gcm()
     )
+    if env:
+        return env
+    try:
+        from config_loader import load_config
+
+        t = (load_config().get("github") or {}).get("token") or ""
+        return t or None
+    except SystemExit:
+        return None
+
+
+def api_base() -> str:
+    try:
+        from config_loader import load_config
+
+        return (load_config().get("github") or {}).get("api_base") or API
+    except SystemExit:
+        return API
 
 
 def api_get(url: str, tok: str, *, accept: str = "application/vnd.github+json") -> tuple[dict | list, dict]:
@@ -131,7 +149,7 @@ def search_code(tok: str, query: str, *, per_page: int = 50, max_items: int = 10
                 "page": page,
             }
         )
-        url = f"{API}/search/code?{q}"
+        url = f"{api_base()}/search/code?{q}"
         data, headers = api_get(url, tok)
         items = data.get("items") or []
         if not items:
@@ -173,7 +191,7 @@ def search_code(tok: str, query: str, *, per_page: int = 50, max_items: int = 10
 
 def fetch_raw(tok: str, repo: str, path: str, *, max_bytes: int = 2_000_000) -> bytes | None:
     # Contents API returns base64 for files; use raw media type.
-    url = f"{API}/repos/{repo}/contents/{urllib.parse.quote(path)}"
+    url = f"{api_base()}/repos/{repo}/contents/{urllib.parse.quote(path)}"
     req = urllib.request.Request(
         url,
         headers={

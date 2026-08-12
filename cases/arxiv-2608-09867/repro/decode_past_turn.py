@@ -41,12 +41,11 @@ from pathlib import Path
 
 from scan_github import fetch_raw, token as github_token
 from scan_reasoning_blobs import PATTERNS
+from config_loader import load_config, require_llm
 
-ENV_KURONEKO = Path(r"d:/kuroneko/.env.kuroneko")
-
-# Paper names Haiku as Anthropic weak decoder; on PocketCity/Bedrock Haiku
-# does NOT decrypt — Sonnet 4.6 / Opus 4.6 do (see repro_matrix.json).
-DECODERS = {
+# Paper names Haiku as Anthropic weak decoder; on many Bedrock-style gateways
+# Haiku does NOT decrypt — Sonnet 4.6 / Opus do (see CASE.md).
+DEFAULT_DECODERS = {
     "anthropic": "claude-sonnet-4-6",
     "openai": "gpt-5.6-luna",
     "gemini": "gemini-robotics-er-1.5-preview",
@@ -91,18 +90,46 @@ def vendor_of(hint: str) -> str:
 
 
 def pocketcity_base() -> tuple[str, str]:
-    file_env = load_dotenv_file(ENV_KURONEKO)
-    key = os.environ.get("LOCALMODULE_API_KEY") or file_env.get("LOCALMODULE_API_KEY")
-    base = (
-        os.environ.get("LOCALMODULE_BASE_URL")
-        or file_env.get("LOCALMODULE_BASE_URL")
-        or "https://ai.pocketcity.com"
-    ).rstrip("/")
-    if not key:
-        raise SystemExit("Need LOCALMODULE_API_KEY in d:/kuroneko/.env.kuroneko")
-    if not re.search(r"/v\d+$", base, re.I):
-        base += "/v1"
-    return base, key
+    """Resolve LLM endpoint from repro/config.toml (preferred) or legacy env."""
+    try:
+        cfg = load_config()
+        return require_llm(cfg)
+    except SystemExit:
+        for p in (
+            Path(__file__).resolve().parents[4] / ".env.kuroneko",
+            Path(r"d:/kuroneko/.env.kuroneko"),
+        ):
+            file_env = load_dotenv_file(p)
+            key = os.environ.get("LOCALMODULE_API_KEY") or file_env.get("LOCALMODULE_API_KEY")
+            base = (
+                os.environ.get("LOCALMODULE_BASE_URL")
+                or file_env.get("LOCALMODULE_BASE_URL")
+                or ""
+            ).rstrip("/")
+            if key and base:
+                if not re.search(r"/v\d+$", base, re.I):
+                    base += "/v1"
+                return base, key
+        raise SystemExit(
+            "Need repro/config.toml [llm] base_url + api_key "
+            "(copy from config.example.toml)"
+        ) from None
+
+
+def decoders_from_config() -> dict[str, str]:
+    d = dict(DEFAULT_DECODERS)
+    try:
+        cfg = load_config()
+        if cfg.get("llm", {}).get("decode_model"):
+            d["anthropic"] = cfg["llm"]["decode_model"]
+        prompt = (cfg.get("decode") or {}).get("user_prompt")
+        if prompt:
+            global USER_CURRENT, USER_PAST
+            USER_CURRENT = prompt
+            USER_PAST = prompt
+    except SystemExit:
+        pass
+    return d
 
 
 def post_json(url: str, headers: dict, body: dict) -> dict:
@@ -321,6 +348,7 @@ def main() -> int:
     args = ap.parse_args()
 
     base, key = pocketcity_base()
+    DECODERS = decoders_from_config()
     anth_url = base.rstrip("/") + "/messages"
     chat_url = base.rstrip("/") + "/chat/completions"
     anth_headers = {

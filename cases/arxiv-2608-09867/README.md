@@ -1,47 +1,49 @@
-# arXiv:2608.09867 — 使用说明
+# 复现文案 = 直接跑脚本（密钥只放 config.toml）
 
-## 防御（产品能力）
+**不必注册 GitCode。** 本 case 挖密文用 **GitHub Code Search**（本机已有 GitHub 登录/token 即可）。  
+GitCode 只在你要「加速 clone 某个已知仓」时才有用，公开浏览镜像通常也不强依赖帐号。
+
+---
+
+## 1. 配置（脱敏模板已入库）
 
 ```bash
-# 扫描当前仓库已跟踪文件
+cd cases/arxiv-2608-09867/repro
+cp config.example.toml config.toml
+# 编辑 config.toml：填 [llm] base_url / api_key（example 里是假地址）
+# 可选 [github] token；也可用环境变量 GH_TOKEN / LLM_API_KEY
+```
+
+`config.toml` **不要提交**（见 `.gitignore`）。
+
+---
+
+## 2. 脚本入口
+
+| 命令 | 作用 |
+|------|------|
+| `python run_repro.py demo` | 本地检测器自测（无 API） |
+| `python run_repro.py critical` | 铸 signature → past_turn 展开（控制实验，需 LLM） |
+| `python run_repro.py github` | GitHub 抽样扫密文 |
+| `python run_repro.py decode` | 对扫到的密文做 past_turn 解码 |
+| `python run_repro.py all` | demo → critical（有 token 再 github+decode） |
+
+单脚本：
+
+- `repro_critical.py` — marker 不在明文历史时仍泄漏 ⇒ 真解密  
+- `scan_reasoning_blobs.py` / `scan_github.py` / `decode_past_turn.py`
+
+产物默认写 `out/`（已 gitignore）。
+
+---
+
+## 3. 防御对照
+
+```bash
 mcp-guard git-scan .
-
-# 只扫暂存区（适合 pre-commit）
 mcp-guard git-scan --staged .
-
-# 有命中仍打印 JSON、但不以非零退出
-mcp-guard git-scan . --fail false
 ```
 
-Hook 示例：[`defense/`](./defense/)
+对照页：[`assets/compare_cipher_plain.html`](./assets/compare_cipher_plain.html)
 
-配置（可选 `mcp-guard.toml`）：
-
-```toml
-[git_scan]
-max_file_bytes = 5000000
-extensions = [".json", ".jsonl", ".ndjson", ".txt", ".md", ".log", ".yml", ".yaml"]
-```
-
-## 对照页
-
-打开 [`assets/compare_cipher_plain.html`](./assets/compare_cipher_plain.html) 查看 GitHub 外源密文与展开 CoT 对照（实验室结果快照）。
-
-## 进攻复现（实验室，需自备 API）
-
-**完整脚本方案：** [`REPRO-PLAN.md`](./REPRO-PLAN.md)（Phase A 发现 → B 控制实验 → C 解码 → D 防御）。
-
-`repro/` 内脚本依赖 PocketCity / Anthropic 兼容 `messages` API。**不要**把真实 signature / 密钥提交进本仓。
-
-```bash
-cd repro
-python scan_reasoning_blobs.py demo          # A1 无 API
-python scan_github.py --max-per-query 40     # A3 需 GitHub token
-python decode_past_turn.py --mode past --limit 6
-```
-
-国内镜像选型也写在 `REPRO-PLAN.md` 末节：**克隆加速用 GitCode gh_mirrors；挖密文仍以 GitHub Code Search 为主**。
-
-## 扫描范围说明
-
-公开 GitHub 检索是 **Code Search 抽样**（约 10 条 query × 每条 ≤40 命中），不是全站镜像。本地防御扫描覆盖 **本仓库 tracked / staged** 文件。
+细节矩阵见 [`CASE.md`](./CASE.md)。
