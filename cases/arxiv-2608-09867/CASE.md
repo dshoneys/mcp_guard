@@ -33,12 +33,14 @@ Foreign GitHub Anthropic signatures also transcribed via Sonnet (see `assets/com
 
 ```text
 cases/arxiv-2608-09867/
-  CASE.md                 # this file
-  README.md               # how to run offense lab + defense
-  fixtures/               # synthetic leak samples for unit tests
-  defense/                # pre-commit hooks
-  assets/                 # ciphertext ↔ plaintext compare page
-  repro/                  # minimal Python lab scripts (optional API calls)
+  README.md / REPRO-PLAN.md / CASE.md
+  repro/
+    config.example.toml   # 脱敏占位
+    config.toml           # 本地密钥（gitignore）
+    run_repro.py          # 入口
+    repro_critical.py     # 控制实验
+    scan_*.py / decode_*.py
+  defense/ assets/ fixtures/
 ```
 
 ## Defense acceptance
