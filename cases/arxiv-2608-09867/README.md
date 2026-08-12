@@ -29,14 +29,18 @@ extensions = [".json", ".jsonl", ".ndjson", ".txt", ".md", ".log", ".yml", ".yam
 
 ## 进攻复现（实验室，需自备 API）
 
+**完整脚本方案：** [`REPRO-PLAN.md`](./REPRO-PLAN.md)（Phase A 发现 → B 控制实验 → C 解码 → D 防御）。
+
 `repro/` 内脚本依赖 PocketCity / Anthropic 兼容 `messages` API。**不要**把真实 signature / 密钥提交进本仓。
 
 ```bash
-# 最小检测器自测（无 API）
-python repro/scan_reasoning_blobs.py demo
-
-# 完整解码路径见 CASE.md；实验草稿仍可能在 experiments/git-cipher-scan/
+cd repro
+python scan_reasoning_blobs.py demo          # A1 无 API
+python scan_github.py --max-per-query 40     # A3 需 GitHub token
+python decode_past_turn.py --mode past --limit 6
 ```
+
+国内镜像选型也写在 `REPRO-PLAN.md` 末节：**克隆加速用 GitCode gh_mirrors；挖密文仍以 GitHub Code Search 为主**。
 
 ## 扫描范围说明
 
