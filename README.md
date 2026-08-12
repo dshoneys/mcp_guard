@@ -81,6 +81,7 @@ MCP Guard **不**跑在浏览器里。它作为主机侧 Agent，盯住共同瓶
 | `mcp-guard dashboard` | ✅ 仅主窗口（无托盘；日常用 `tray`） |
 | `mcp-guard status` | ✅ 菜单模型 + 审计快照 JSON |
 | `mcp-guard vault` / `vault-mcp` | ✅ NoContext 密钥保险箱 |
+| `mcp-guard git-scan` | ✅ 本地 git 防 reasoning 密文入库（[arXiv:2608.09867](https://arxiv.org/abs/2608.09867)） |
 | 硬端口/进程拦截 | ⏳ |
 | 路径 / 工具策略 | ⏳ |
 
@@ -110,6 +111,15 @@ mcp-guard vault issue-ref openai
 ```
 
 工具：`vault_list`、`vault_issue_ref`、`vault_ref_info`、`vault_run_with_secret` — **没有** `vault_get`。
+
+### 本地 git：防 reasoning 密文入库
+
+厂商把 CoT 做成不透明 AEAD 块；一旦写进 git，公开仓库可被回放解密。见攻防 case：[`cases/arxiv-2608-09867/`](cases/arxiv-2608-09867/)。
+
+```bash
+mcp-guard git-scan .
+mcp-guard git-scan --staged .   # pre-commit
+```
 
 ## 构建与调试
 

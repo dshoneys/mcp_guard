@@ -7,3 +7,9 @@ mcp-guard-vault.key
 .idea/
 .vscode/
 *.pdb
+dist/
+experiments/git-cipher-scan/fixtures/
+experiments/git-cipher-scan/*.json
+experiments/git-cipher-scan/*.html
+experiments/git-cipher-scan/*.log
+!experiments/git-cipher-scan/README.md

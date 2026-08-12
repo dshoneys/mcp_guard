@@ -23,3 +23,8 @@ alert_on_unknown = true
 store_path = "mcp-guard-vault.enc"
 key_path = "mcp-guard-vault.key"
 ref_ttl_secs = 600
+
+[git_scan]
+max_file_bytes = 5000000
+# extensions = [".json", ".jsonl", ".ndjson", ".txt", ".md", ".log"]
+# exclude_substrings = ["cases/arxiv-2608-09867/fixtures/", "experiments/git-cipher-scan/"]

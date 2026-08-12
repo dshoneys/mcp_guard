@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 use mcp_guard::audit::{JsonlSink, JsonlStatusSource};
 use mcp_guard::config::Config;
 use mcp_guard::contracts::{StatusSource, TrayActionId};
+use mcp_guard::git_scan;
 use mcp_guard::scan::LoopbackScanner;
 use mcp_guard::watch::SoftWatcher;
 use mcp_guard::{config, scan, serve, ui_shell, vault, watch};
@@ -36,6 +37,18 @@ enum Commands {
     Scan {
         #[arg(short, long, value_delimiter = ',')]
         ports: Vec<u16>,
+    },
+    /// Scan a local git repo for opaque LLM reasoning signatures (anti leak-to-git)
+    GitScan {
+        /// Repo root (default: cwd)
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        /// Only scan staged files (pre-commit friendly)
+        #[arg(long)]
+        staged: bool,
+        /// Exit 1 when findings are present (default: true)
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+        fail: bool,
     },
     /// Show which processes listen on / connect to watched ports
     Watch,
@@ -116,6 +129,16 @@ async fn main() -> Result<()> {
         Commands::Scan { ports } => {
             let report = scan::run(&cfg, &ports).await?;
             println!("{}", serde_json::to_string_pretty(&report)?);
+        }
+        Commands::GitScan { path, staged, fail } => {
+            let report = git_scan::scan_repo(&cfg, &path, staged)?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            if fail && !report.findings.is_empty() {
+                anyhow::bail!(
+                    "git-scan: {} opaque reasoning signature(s) found — refuse commit / clean traces",
+                    report.findings.len()
+                );
+            }
         }
         Commands::Watch => {
             let report = watch::run(&cfg)?;

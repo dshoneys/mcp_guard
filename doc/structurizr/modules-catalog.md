@@ -10,6 +10,8 @@ Target topology: **plugins → contracts (+ optional infra)**; **compose** wires
 | cli | compose | `src/main.rs` | runtime, config, plugins (wire) | Assembles `run_with(...)` |
 | runtime | compose | `src/serve.rs` | contracts, config | Dispatches via Scanner/Watcher/AlertSink |
 | scan | plugin | `src/scan.rs` | contracts, config, net_enum | Enumerate + HTTP warn + MCP `tools/list` probe; Env: loopback |
+| git_scan | plugin | `src/git_scan.rs` | contracts, config | Local git tracked/staged scan for opaque LLM reasoning signatures |
+| cases | infra | `cases/` | — | Offense/defense case packs (docs + fixtures), not a plugin |
 | watch | plugin | `src/watch.rs` | contracts, config, net_enum | SoftWatcher on discovered listen ports |
 | audit | plugin | `src/audit.rs` | contracts, config | `JsonlSink` |
 | vault | plugin | `src/vault/` | contracts, config | NoContext secrets + `vault-mcp` |

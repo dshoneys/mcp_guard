@@ -16,7 +16,7 @@ workspace "MCP Guard" "Local agent: scan / watch / audit / (later) gate MCP tool
         mcpGuard = softwareSystem "MCP Guard" "Resident host agent for MCP exposure scan, soft watch, audit; hard gate later" {
 
             group "L2 — composition" {
-                cli = container "CLI" "clap entry: scan / watch / serve / version" "Rust bin mcp-guard" {
+                cli = container "CLI" "clap entry: scan / git-scan / watch / serve / version" "Rust bin mcp-guard" {
                     tags "Compose"
                     properties {
                         "path" "src/main.rs"
@@ -57,6 +57,18 @@ workspace "MCP Guard" "Local agent: scan / watch / audit / (later) gate MCP tool
                         "horizon.intention" "Detect exploitable local MCP-like surfaces without fixed port whitelist"
                         "horizon.deps" "contracts (+ config, net_enum infra)"
                         "test_kind" "unit+env"
+                    }
+                }
+
+                gitScanPlugin = container "Git scan plugin" "Scan local git tracked/staged files for opaque LLM reasoning signatures" "Rust" {
+                    tags "Plugin"
+                    properties {
+                        "path" "src/git_scan.rs"
+                        "role" "plugin"
+                        "horizon.intention" "Prevent provider CoT AEAD blobs from entering git history"
+                        "horizon.deps" "contracts + config"
+                        "test_kind" "unit"
+                        "adl" "GIT-REASONING-LEAK.md"
                     }
                 }
 
@@ -150,6 +162,7 @@ workspace "MCP Guard" "Local agent: scan / watch / audit / (later) gate MCP tool
             // Compose wiring (allowed fan-in)
             cli -> runtime "serve"
             cli -> scanPlugin "scan once"
+            cli -> gitScanPlugin "git-scan once"
             cli -> watchPlugin "watch once"
             cli -> configMod "load"
 
@@ -158,6 +171,8 @@ workspace "MCP Guard" "Local agent: scan / watch / audit / (later) gate MCP tool
 
             // Target: plugins → contracts only
             scanPlugin -> contracts "implements Scanner"
+            gitScanPlugin -> contracts "implements GitScanner"
+            gitScanPlugin -> configMod "paths / limits"
             watchPlugin -> contracts "implements Watcher"
             auditPlugin -> contracts "implements AlertSink"
             vaultPlugin -> contracts "implements Vault ports"

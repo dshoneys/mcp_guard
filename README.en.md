@@ -80,6 +80,7 @@ Browser extensions are optional demos only — they cannot cover every client th
 | `mcp-guard dashboard` | ✅ main window only (no tray; prefer `tray`) |
 | `mcp-guard status` | ✅ menu model + audit snapshot JSON |
 | `mcp-guard vault` / `vault-mcp` | ✅ NoContext secret vault |
+| `mcp-guard git-scan` | ✅ Local git scan for opaque LLM reasoning blobs ([arXiv:2608.09867](https://arxiv.org/abs/2608.09867)) |
 | Hard port/process block | ⏳ |
 | Path / tool policy | ⏳ |
 
@@ -109,6 +110,15 @@ mcp-guard vault issue-ref openai
 ```
 
 Tools: `vault_list`, `vault_issue_ref`, `vault_ref_info`, `vault_run_with_secret` — **no** `vault_get`.
+
+### Local git: block reasoning ciphertext from landing in history
+
+Providers wrap CoT as opaque AEAD blobs; once committed, public clones can be replay-decrypted. Case pack: [`cases/arxiv-2608-09867/`](cases/arxiv-2608-09867/).
+
+```bash
+mcp-guard git-scan .
+mcp-guard git-scan --staged .
+```
 
 ## Build
 

@@ -81,6 +81,36 @@ pub struct WatchReport {
     pub alert_count: usize,
 }
 
+// --- Git reasoning-leak scan DTOs (arXiv:2608.09867 defense) ---
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitScanFinding {
+    pub provider_hint: String,
+    pub path: String,
+    pub offset: usize,
+    pub token_len: usize,
+    pub preview: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitScanReport {
+    pub root: String,
+    pub mode: String,
+    pub scanned_at: String,
+    pub files_scanned: usize,
+    pub findings: Vec<GitScanFinding>,
+}
+
+/// Scan local git trees for opaque LLM reasoning AEAD blobs.
+pub trait GitScanner: Send + Sync {
+    fn scan_repo(
+        &self,
+        cfg: &Config,
+        root: &std::path::Path,
+        staged_only: bool,
+    ) -> Result<GitScanReport>;
+}
+
 // --- Ports ---
 
 #[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]

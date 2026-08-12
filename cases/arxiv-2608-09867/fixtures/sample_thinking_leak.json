@@ -1,0 +1,14 @@
+{
+  "role": "assistant",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "FIXTURE-ONLY — synthetic opaque blob for mcp-guard git-scan unit tests. Not a real provider signature.",
+      "signature": "EtoBCmUIDxgCKkDEsdd1LtIYTEwebziGetT+uurhPWvz0DI/ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/SYNTHETIC_FIXTURE_PAD=="
+    },
+    {
+      "type": "text",
+      "text": "221"
+    }
+  ]
+}

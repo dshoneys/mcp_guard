@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 #[serde(default)]
 pub struct Config {
     pub scan: ScanConfig,
+    pub git_scan: GitScanConfig,
     pub audit: AuditConfig,
     pub serve: ServeConfig,
     pub gate: GateConfig,
@@ -18,6 +19,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             scan: ScanConfig::default(),
+            git_scan: GitScanConfig::default(),
             audit: AuditConfig::default(),
             serve: ServeConfig::default(),
             gate: GateConfig::default(),
@@ -55,6 +57,45 @@ impl Default for ScanConfig {
             connect_timeout_ms: 400,
             http_timeout_ms: 800,
             alert_on_exposure: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GitScanConfig {
+    /// Skip files larger than this many bytes.
+    pub max_file_bytes: u64,
+    /// If non-empty, only scan paths ending with these suffixes (case-insensitive).
+    pub extensions: Vec<String>,
+    /// Skip relative paths containing any of these substrings (normalized `/`).
+    pub exclude_substrings: Vec<String>,
+}
+
+impl Default for GitScanConfig {
+    fn default() -> Self {
+        Self {
+            max_file_bytes: 5_000_000,
+            extensions: vec![
+                ".json".into(),
+                ".jsonl".into(),
+                ".ndjson".into(),
+                ".txt".into(),
+                ".md".into(),
+                ".log".into(),
+                ".yml".into(),
+                ".yaml".into(),
+                ".toml".into(),
+                ".ts".into(),
+                ".js".into(),
+                ".py".into(),
+            ],
+            // Lab fixtures + HTML dumps that intentionally embed opaque blobs for demos.
+            exclude_substrings: vec![
+                "cases/arxiv-2608-09867/fixtures/".into(),
+                "cases/arxiv-2608-09867/assets/".into(),
+                "experiments/git-cipher-scan/".into(),
+            ],
         }
     }
 }

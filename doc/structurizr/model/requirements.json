@@ -209,6 +209,24 @@
       "test_kind": "unit",
       "tests": ["tests/i18n_catalog.rs"],
       "acceptance": "Default locale zh-CN; en pack loads; tray/dashboard/toast strings come from catalog; --locale overrides"
+    },
+    {
+      "id": "REQ-GIT-REASONING-LEAK",
+      "title": "Scan local git trees for opaque LLM reasoning signatures before they land in history",
+      "component": "git_scan",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/git_scan_detect.rs"],
+      "acceptance": "Detect Anthropic thinking.signature / OpenAI encrypted_content / Gemini thoughtSignature / generic long signature fields in tracked or staged files; exit non-zero with --fail when findings present; fixtures under cases/arxiv-2608-09867"
+    },
+    {
+      "id": "REQ-CASE-ARXIV-2608-09867",
+      "title": "Offense/defense case pack for Stealing Reasoning Traces (arXiv:2608.09867)",
+      "component": "cases",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "cases/arxiv-2608-09867 documents PocketCity past_turn decrypt + defense git-scan/hooks; compare page shows ciphertext vs plaintext"
     }
   ]
 }

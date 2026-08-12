@@ -3,6 +3,7 @@
 pub mod audit;
 pub mod config;
 pub mod contracts;
+pub mod git_scan;
 pub mod net_enum;
 pub mod scan;
 pub mod serve;

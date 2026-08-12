@@ -25,3 +25,5 @@ Source of truth: `model/requirements.json`.
 | REQ-VAULT-MCP | vault | manual | no | Cursor `vault-mcp` | human |
 | REQ-VAULT-UI | ui_shell | manual | UX+UI accepted | dashboard § vault | in progress (人测) |
 | REQ-I18N | ui_shell | unit | no | `tests/i18n_catalog.rs` | ✅ |
+| REQ-GIT-REASONING-LEAK | git_scan | unit | no | `tests/git_scan_detect.rs` | ✅ |
+| REQ-CASE-ARXIV-2608-09867 | cases | manual | no | `cases/arxiv-2608-09867` pack | human |
