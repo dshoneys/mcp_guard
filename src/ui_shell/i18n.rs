@@ -148,6 +148,8 @@ pub struct FlagStrings {
     pub tcp_open_non_http_or_timeout: String,
     #[serde(default = "zh_flag_unknown_client")]
     pub unknown_client: String,
+    #[serde(default = "zh_flag_xss_reflect")]
+    pub xss_reflected_unescaped: String,
     /// Fallback when flag id has no translation: `{flag}`
     #[serde(default = "zh_flag_unknown")]
     pub unknown: String,
@@ -401,6 +403,9 @@ fn zh_flag_tcp() -> String {
 fn zh_flag_unknown_client() -> String {
     "未知/未列入白名单的客户端正在连接该 MCP 端口".into()
 }
+fn zh_flag_xss_reflect() -> String {
+    "本机 HTML 页将 URL 参数/路径原样反射进响应（未转义）— 经典反射 XSS 机会".into()
+}
 fn zh_flag_unknown() -> String {
     "风险信号：{flag}".into()
 }
@@ -591,6 +596,7 @@ impl Default for FlagStrings {
             known_workbuddy_ardot_port: zh_flag_workbuddy(),
             tcp_open_non_http_or_timeout: zh_flag_tcp(),
             unknown_client: zh_flag_unknown_client(),
+            xss_reflected_unescaped: zh_flag_xss_reflect(),
             unknown: zh_flag_unknown(),
         }
     }
@@ -798,6 +804,7 @@ impl Catalog {
                 "known_workbuddy_ardot_port": self.flags.known_workbuddy_ardot_port,
                 "tcp_open_non_http_or_timeout": self.flags.tcp_open_non_http_or_timeout,
                 "unknown_client": self.flags.unknown_client,
+                "xss_reflected_unescaped": self.flags.xss_reflected_unescaped,
                 "unknown": self.flags.unknown,
             },
             "vault": {

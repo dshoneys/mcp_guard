@@ -18,6 +18,7 @@ fn risk_details_list_app_mcp_and_flags() {
             }),
             risk_flags: vec!["cors_star", "no_www_authenticate_hint"],
             mcp: None,
+            xss: None,
         }],
     };
     let risks = risk_details_from_scan(&report);

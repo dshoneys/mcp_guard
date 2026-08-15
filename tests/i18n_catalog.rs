@@ -76,8 +76,10 @@ fn flag_pack_loaded_from_toml() {
     assert!(zh.flags.known_workbuddy_ardot_port.contains("WorkBuddy"));
     assert!(zh.flags.mcp_jsonrpc_surface.contains("未保护"));
     assert!(zh.flags.mcp_tools_exposed.contains("进一步"));
+    assert!(zh.flags.xss_reflected_unescaped.contains("反射"));
     let (_, en) = load_catalog("en").expect("en");
     assert!(en.flags.cors_star.contains("CORS"));
     assert!(en.flags.mcp_tools_exposed.contains("elevated"));
+    assert!(en.flags.xss_reflected_unescaped.contains("XSS"));
     assert!(en.dashboard.risk_app_unknown.contains("Unknown"));
 }

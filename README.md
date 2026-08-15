@@ -74,7 +74,7 @@ MCP Guard **不**跑在浏览器里。它作为主机侧 Agent，盯住共同瓶
 
 | 能力 | 状态 |
 |------|------|
-| `mcp-guard scan` | ✅ |
+| `mcp-guard scan` | ✅ 含 MCP 面 + 本机 **反射 XSS** canary（`xss_reflected_unescaped`） |
 | `mcp-guard watch` | ✅ 软归因 |
 | `mcp-guard serve` | ✅ scan + watch + 审计 |
 | `mcp-guard tray` | ✅ 托盘 + 主界面 + 后台 Agent（**默认中文**；`--locale en`） |
@@ -82,6 +82,7 @@ MCP Guard **不**跑在浏览器里。它作为主机侧 Agent，盯住共同瓶
 | `mcp-guard status` | ✅ 菜单模型 + 审计快照 JSON |
 | `mcp-guard vault` / `vault-mcp` | ✅ NoContext 密钥保险箱 |
 | `mcp-guard git-scan` | ✅ 本地 git 防 reasoning 密文入库（[arXiv:2608.09867](https://arxiv.org/abs/2608.09867)） |
+| `web/xss-reflect-scan` | ✅ 纯 JS 同语义探针（前端静态部署 / [`demo.html`](web/xss-reflect-scan/demo.html)） |
 | 硬端口/进程拦截 | ⏳ |
 | 路径 / 工具策略 | ⏳ |
 

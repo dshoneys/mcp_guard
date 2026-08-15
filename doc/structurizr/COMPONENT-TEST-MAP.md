@@ -9,7 +9,7 @@ Source of truth: `model/requirements.json`.
 | REQ-SCAN-ENUMERATE | scan / net_enum | unit | no | `tests/scan_enumerate.rs` | ✅ |
 | REQ-SCAN-MCP-TOOLS | scan | unit | no | `tests/scan_mcp_tools.rs` | ✅ |
 | REQ-SCAN-LIVE | scan | manual | no | WorkBuddy live | human |
-| REQ-WATCH-ATTR | watch | unit | no | `tests/watch_allowlist.rs` | ✅ |
+| REQ-WATCH-ATTR | watch | unit | no | `tests/watch_allowlist.rs` (family + surface features) | ✅ |
 | REQ-WATCH-LIVE | watch | manual | no | PoC live | human |
 | REQ-AUDIT-JSONL | audit | unit | no | `tests/audit_append.rs` | ✅ |
 | REQ-SERVE-LOOP | runtime | contract | no | `tests/serve_once.rs`, `serve_cancel.rs` | ✅ |
@@ -27,3 +27,5 @@ Source of truth: `model/requirements.json`.
 | REQ-I18N | ui_shell | unit | no | `tests/i18n_catalog.rs` | ✅ |
 | REQ-GIT-REASONING-LEAK | git_scan | unit | no | `tests/git_scan_detect.rs` | ✅ |
 | REQ-CASE-ARXIV-2608-09867 | cases | manual | no | `cases/arxiv-2608-09867` pack | human |
+| REQ-SCAN-XSS-REFLECT | scan / xss_reflect | unit | no | `tests/scan_xss_reflect.rs` | ✅ |
+| REQ-SCAN-XSS-REFLECT-JS | web_xss_reflect | manual | no | `web/xss-reflect-scan` (+ `selftest.mjs`) | human |

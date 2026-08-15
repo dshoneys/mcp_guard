@@ -7,6 +7,9 @@ connect_timeout_ms = 400
 http_timeout_ms = 800
 # Raise EXPOSURE ALERT when CORS*/auth heuristics fire (not only audit)
 alert_on_exposure = true
+# Classic reflected XSS: canary in URL → unescaped echo in text/html
+xss_reflect = true
+xss_max_probes_per_port = 6
 
 [audit]
 path = "mcp-guard-audit.jsonl"

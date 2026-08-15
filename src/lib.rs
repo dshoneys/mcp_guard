@@ -7,6 +7,7 @@ pub mod git_scan;
 pub mod net_enum;
 pub mod scan;
 pub mod serve;
+pub mod xss_reflect;
 pub mod ui_shell;
 pub mod vault;
 pub mod watch;

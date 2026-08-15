@@ -1,0 +1,10 @@
+{
+  "name": "@mcp-guard/xss-reflect-scan",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure JS reflected XSS canary probe (MCP Guard sibling)",
+  "exports": {
+    ".": "./index.js"
+  }
+}

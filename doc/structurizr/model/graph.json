@@ -15,7 +15,8 @@
     { "id": "vault", "role": "plugin", "path": "src/vault/" },
     { "id": "gate", "role": "plugin", "path": "src/gate (planned)", "status": "planned" },
     { "id": "ui_shell", "role": "plugin", "path": "src/ui_shell/" },
-    { "id": "cases", "role": "infra", "path": "cases/ (offense-defense packs — data/docs, not a plugin)" }
+    { "id": "cases", "role": "infra", "path": "cases/ (offense-defense packs — data/docs, not a plugin)" },
+    { "id": "web_xss_reflect", "role": "infra", "path": "web/xss-reflect-scan/ (pure JS probe — frontend deploy, not a plugin)" }
   ],
   "edges": [
     { "from": "scan", "to": "contracts", "kind": "implements" },
@@ -43,6 +44,7 @@
     "UI as config/code: swap visuals via ui_config or replace ui_shell impl without raising scan/watch out-degree.",
     "runtime dispatches via contracts (Scanner/Watcher/AlertSink); cli wires Default* adapters.",
     "vault NoContext: MCP never returns plaintext — see VAULT-NOCONTEXT.md.",
-    "git_scan: local tree/staged files for opaque LLM reasoning AEAD blobs (arXiv:2608.09867 defense)."
+    "git_scan: local tree/staged files for opaque LLM reasoning AEAD blobs (arXiv:2608.09867 defense).",
+    "xss_reflect lives inside scan plugin (src/xss_reflect.rs); web_xss_reflect is the pure-JS sibling for static/frontend demos."
   ]
 }

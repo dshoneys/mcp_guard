@@ -71,6 +71,7 @@ no_www_authenticate_hint = "No WWW-Authenticate header seen — weak auth hint (
 known_workbuddy_ardot_port = "Known WorkBuddy ARDOT port — local MCP surface may be abusable"
 tcp_open_non_http_or_timeout = "Port open but HTTP probe failed or timed out"
 unknown_client = "Unknown / non-allowlisted client is connecting to this MCP port"
+xss_reflected_unescaped = "Local HTML reflects URL query/path without escaping — classic reflected XSS opportunity"
 unknown = "Risk signal: {flag}"
 
 [vault]

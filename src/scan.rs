@@ -47,6 +47,7 @@ pub async fn run(cfg: &Config, extra_ports: &[u16]) -> Result<ScanReport> {
             .iter()
             .map(|flag| match *flag {
                 "mcp_tools_exposed" => 0u8,
+                "xss_reflected_unescaped" => 0,
                 "cors_star" => 1,
                 "mcp_jsonrpc_surface" => 2,
                 _ => 4,
@@ -75,6 +76,7 @@ async fn probe_port(cfg: &Config, port: u16) -> PortFinding {
             open: false,
             http: None,
             mcp: None,
+            xss: None,
             risk_flags: vec![],
         };
     }
@@ -82,13 +84,18 @@ async fn probe_port(cfg: &Config, port: u16) -> PortFinding {
     let http = http_get_probe(cfg, port).await;
     // MCP endpoints may ignore GET / — always try tools/list on open TCP.
     let mcp = mcp_tools_probe(cfg, port).await;
-    let risk_flags = classify_risks(port, http.as_ref(), mcp.as_ref());
+    let xss = crate::xss_reflect::probe_port(cfg, port).await;
+    let mut risk_flags = classify_risks(port, http.as_ref(), mcp.as_ref());
+    if let Some(flag) = crate::xss_reflect::risk_flag_for(xss.as_ref()) {
+        risk_flags.push(flag);
+    }
 
     PortFinding {
         port,
         open: true,
         http,
         mcp,
+        xss,
         risk_flags,
     }
 }

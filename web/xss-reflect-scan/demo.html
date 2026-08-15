@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MCP Guard — XSS reflect scan</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --fg: #e7ecf1;
+      --muted: #8b9aab;
+      --accent: #3d8bfd;
+      --danger: #f07178;
+      --ok: #7fd99a;
+      --card: #1a222c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg);
+      min-height: 100vh;
+      padding: 2rem 1.25rem 3rem;
+    }
+    main { max-width: 40rem; margin: 0 auto; }
+    h1 { font-size: 1.35rem; font-weight: 650; margin: 0 0 0.35rem; }
+    p.lead { color: var(--muted); margin: 0 0 1.5rem; line-height: 1.5; font-size: 0.95rem; }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+    input, button {
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid #2c3a4a;
+      padding: 0.65rem 0.85rem;
+      background: var(--card);
+      color: var(--fg);
+      width: 100%;
+    }
+    button {
+      background: var(--accent);
+      border-color: transparent;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 0.75rem;
+    }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    .row { margin-bottom: 0.85rem; }
+    pre {
+      background: var(--card);
+      border: 1px solid #2c3a4a;
+      border-radius: 10px;
+      padding: 1rem;
+      overflow: auto;
+      font-size: 0.78rem;
+      line-height: 1.45;
+      margin-top: 1.25rem;
+    }
+    .hit { color: var(--danger); font-weight: 600; }
+    .ok { color: var(--ok); }
+    .note { font-size: 0.8rem; color: var(--muted); margin-top: 1rem; line-height: 1.45; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>本机反射 XSS 探针</h1>
+    <p class="lead">MCP Guard 纯 JS 版：对 loopback 端口注入 canary，检查 HTML 是否未转义回显。</p>
+    <div class="row">
+      <label for="host">Host</label>
+      <input id="host" value="127.0.0.1" />
+    </div>
+    <div class="row">
+      <label for="ports">Ports（逗号分隔）</label>
+      <input id="ports" value="3088,61157,50551" />
+    </div>
+    <button id="go" type="button">Scan</button>
+    <p class="note">浏览器跨端口读 body 常被 CORS 挡住 → <code>cors_blocked</code>。完整探测用 <code>mcp-guard scan</code>，或把本页也放在本机同源场景。</p>
+    <pre id="out">{}</pre>
+  </main>
+  <script type="module">
+    import { scanPorts, riskFlagFor } from "./index.js";
+
+    const out = document.getElementById("out");
+    const btn = document.getElementById("go");
+
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      out.textContent = "scanning…";
+      try {
+        const host = document.getElementById("host").value.trim() || "127.0.0.1";
+        const ports = document
+          .getElementById("ports")
+          .value.split(/[,\s]+/)
+          .map((s) => parseInt(s, 10))
+          .filter((n) => n > 0 && n < 65536);
+        const report = await scanPorts({ host, ports });
+        const hits = report.findings.filter((f) => riskFlagFor(f.xss));
+        out.textContent = JSON.stringify(report, null, 2);
+        if (hits.length) {
+          out.className = "hit";
+        } else {
+          out.className = "ok";
+        }
+      } catch (e) {
+        out.textContent = String(e && e.stack ? e.stack : e);
+        out.className = "hit";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

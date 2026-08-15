@@ -17,6 +17,7 @@ fn report_with_flags(flags: Vec<&'static str>) -> ScanReport {
             }),
             risk_flags: flags,
             mcp: None,
+            xss: None,
         }],
     }
 }

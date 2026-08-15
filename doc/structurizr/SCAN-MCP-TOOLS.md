@@ -17,7 +17,9 @@
    - no `WWW-Authenticate` → `no_www_authenticate_hint`
    - port `50551` → `known_workbuddy_ardot_port`
 
-Bare non-HTTP TCP and ordinary local HTTP remain unscored.
+Bare non-HTTP TCP and ordinary local HTTP remain unscored **for MCP flags**.
+
+Reflected XSS (`xss_reflected_unescaped`) is a **separate** score — see [`SCAN-XSS-REFLECT.md`](./SCAN-XSS-REFLECT.md). It may fire on HTML surfaces that are not MCP.
 
 ## Paths
 

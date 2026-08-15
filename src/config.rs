@@ -45,6 +45,10 @@ pub struct ScanConfig {
     pub http_timeout_ms: u64,
     /// If true, risky exposure findings also raise alerts (not only audit rows).
     pub alert_on_exposure: bool,
+    /// Probe local HTTP for classic reflected XSS (URL canary → HTML).
+    pub xss_reflect: bool,
+    /// Max canary GETs per open port.
+    pub xss_max_probes_per_port: usize,
 }
 
 impl Default for ScanConfig {
@@ -57,6 +61,8 @@ impl Default for ScanConfig {
             connect_timeout_ms: 400,
             http_timeout_ms: 800,
             alert_on_exposure: true,
+            xss_reflect: true,
+            xss_max_probes_per_port: 6,
         }
     }
 }
@@ -147,6 +153,11 @@ impl Default for GateConfig {
                 "WorkBuddy".into(),
                 "CodeBuddy".into(),
                 "node".into(),
+                // IDE hosts: allowlist is secondary; same-family feature is primary.
+                "Cursor".into(),
+                "Code".into(),
+                "Code - Insiders".into(),
+                "devenv".into(),
             ],
             alert_on_unknown: true,
         }

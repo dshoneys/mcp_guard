@@ -71,6 +71,7 @@ no_www_authenticate_hint = "响应未见 WWW-Authenticate，鉴权提示缺失�
 known_workbuddy_ardot_port = "命中已知 WorkBuddy ARDOT 端口，本地 MCP 表面可能被滥用"
 tcp_open_non_http_or_timeout = "端口开放但 HTTP 探测失败或超时，表面状态不明"
 unknown_client = "未知/未列入白名单的客户端正在连接该 MCP 端口"
+xss_reflected_unescaped = "本机 HTML 页将 URL 参数/路径原样反射进响应（未转义）— 经典反射 XSS 机会"
 unknown = "风险信号：{flag}"
 
 [vault]

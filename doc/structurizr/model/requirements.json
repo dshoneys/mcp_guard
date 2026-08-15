@@ -45,7 +45,7 @@
       "ui": false,
       "test_kind": "unit",
       "tests": ["tests/watch_allowlist.rs"],
-      "acceptance": "Allowlist matching is pure; unknown_client classification from fixtures"
+      "acceptance": "Classify activity by features first (same process-family self-talk is not unknown_client); allowlist is an additional suppress; IDE names like Cursor are in default allowlist; bare Cursor listen ≠ MCP surface"
     },
     {
       "id": "REQ-WATCH-LIVE",
@@ -54,7 +54,7 @@
       "ui": false,
       "test_kind": "manual",
       "tests": [],
-      "acceptance": "Browser/PoC hitting 50551 shows activity_alert for non-allowlisted process"
+      "acceptance": "Browser/PoC hitting a confirmed MCP port shows activity_alert; Cursor Canvas self-loopback does not"
     },
     {
       "id": "REQ-AUDIT-JSONL",
@@ -227,6 +227,24 @@
       "test_kind": "manual",
       "tests": [],
       "acceptance": "cases/arxiv-2608-09867 documents PocketCity past_turn decrypt + defense git-scan/hooks; compare page shows ciphertext vs plaintext"
+    },
+    {
+      "id": "REQ-SCAN-XSS-REFLECT",
+      "title": "Detect unescaped URL reflection into local text/html (classic reflected XSS opportunity)",
+      "component": "scan",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/scan_xss_reflect.rs"],
+      "acceptance": "Canary in query/path: raw echo in HTML → xss_reflected_unescaped risk; HTML-escaped only → no risk flag; non-HTML ignored; independent of MCP scoring; see SCAN-XSS-REFLECT.md; JS sibling under web/xss-reflect-scan/"
+    },
+    {
+      "id": "REQ-SCAN-XSS-REFLECT-JS",
+      "title": "Pure JS reflected-XSS probe for frontend deployment (same semantics as Rust)",
+      "component": "web_xss_reflect",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "web/xss-reflect-scan ESM exports classifyReflection + probePort; browser notes CORS body-read limits; demo page can be static-hosted"
     }
   ]
 }

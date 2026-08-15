@@ -25,7 +25,18 @@ pub struct PortFinding {
     /// Present when JSON-RPC `tools/list` (or MCP-shaped response) succeeded.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp: Option<McpProbe>,
+    /// Present when an HTML surface was probed for URL reflection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xss: Option<XssReflectProbe>,
     pub risk_flags: Vec<&'static str>,
+}
+
+/// Result of the reflected-XSS canary probe (`outcome`: unescaped | escaped | html_no_reflect).
+#[derive(Debug, Clone, Serialize)]
+pub struct XssReflectProbe {
+    pub outcome: &'static str,
+    pub path: String,
+    pub canary: String,
 }
 
 #[derive(Debug, Serialize)]
