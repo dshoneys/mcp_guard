@@ -277,6 +277,24 @@
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       word-break: break-all;
     }
+    .risk-list .rallow {
+      margin-top: 0.55rem;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .risk-list .rallow button {
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--mg-text);
+      border-radius: 8px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+    .risk-list .rallow button:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.22);
+    }
     .risk-empty {
       margin: 0.75rem 0 0;
       color: var(--mg-muted);
@@ -836,6 +854,25 @@
           note.className = "rnote";
           note.textContent = r.note;
           li.appendChild(note);
+        }
+
+        if (k === "activity" && r.app && String(r.app).trim()) {
+          const actions = document.createElement("div");
+          actions.className = "rallow";
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = i18n.dashboard.risk_allow || "手工放过";
+          btn.addEventListener("click", () => {
+            if (!postNative({ action: "allow-process", app: String(r.app).trim() })) {
+              window.alert(
+                fmt(i18n.dashboard.preview_allow || "预览：已放过 {app}", {
+                  app: String(r.app).trim(),
+                })
+              );
+            }
+          });
+          actions.appendChild(btn);
+          li.appendChild(actions);
         }
 
         list.appendChild(li);

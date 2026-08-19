@@ -25,6 +25,8 @@ pub struct DashboardHooks {
     pub status: Arc<dyn Fn() -> Result<(AlertSnapshot, bool)> + Send + Sync>,
     /// Latest risk lines for the scan panel (usually from audit).
     pub risks: Arc<dyn Fn() -> Result<Vec<crate::contracts::RiskDetail>> + Send + Sync>,
+    /// Add a process to the manual allowlist (persisted on disk).
+    pub allow_process: Arc<dyn Fn(&str) -> Result<String> + Send + Sync>,
     pub audit_path: PathBuf,
     pub catalog: Arc<Catalog>,
     pub mute_until: Arc<Mutex<Option<SystemTime>>>,
@@ -385,6 +387,40 @@ pub fn run_dashboard(hooks: DashboardHooks) -> Result<()> {
                             }
                         }
                         let _ = proxy.send_event(UserEvent::Refresh);
+                    });
+                }
+                "allow-process" => {
+                    let app = parsed
+                        .as_ref()
+                        .and_then(|v| v.get("app").and_then(|n| n.as_str()))
+                        .unwrap_or("")
+                        .to_string();
+                    if app.is_empty() {
+                        return;
+                    }
+                    let hooks = Arc::clone(&hooks_ipc);
+                    let proxy = proxy_ipc.clone();
+                    let scanning = Arc::clone(&scanning_ipc);
+                    std::thread::spawn(move || {
+                        match (hooks.allow_process)(&app) {
+                            Ok(token) => {
+                                crate::ui_shell::notify(
+                                    &hooks.catalog.toast.allow_title,
+                                    &fmt_named(
+                                        &hooks.catalog.toast.allow_saved,
+                                        &[("app", &token)],
+                                    ),
+                                );
+                                spawn_dashboard_scan(hooks, proxy.clone(), scanning);
+                            }
+                            Err(err) => {
+                                crate::ui_shell::notify(
+                                    &hooks.catalog.toast.allow_fail_title,
+                                    &err.to_string(),
+                                );
+                                let _ = proxy.send_event(UserEvent::Refresh);
+                            }
+                        }
                     });
                 }
                 "vault-delete" => {

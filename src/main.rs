@@ -419,8 +419,10 @@ fn dashboard_hooks(
     let audit_status = audit_path.clone();
     let audit_risks = audit_path.clone();
     let activity_alert_ttl_secs = cfg.audit.activity_alert_ttl_secs;
-    let cfg_scan = cfg.clone();
-    let vault = Arc::new(vault::Vault::open(&cfg.vault)?);
+    let cfg_shared = Arc::new(Mutex::new(cfg));
+    let cfg_allow = Arc::clone(&cfg_shared);
+    let cfg_scan = Arc::clone(&cfg_shared);
+    let vault = Arc::new(vault::Vault::open(&cfg_shared.lock().unwrap().vault)?);
     let handle = scan_rt.handle().clone();
     Ok(ui_shell::DashboardHooks {
         audit_path,
@@ -436,7 +438,14 @@ fn dashboard_hooks(
         risks: Arc::new(move || {
             mcp_guard::audit::latest_risks_from_jsonl(&audit_risks, activity_alert_ttl_secs)
         }),
-        scan: Arc::new(move || handle.block_on(tray_scan_once(&cfg_scan))),
+        allow_process: Arc::new(move |app| {
+            let mut c = cfg_allow.lock().unwrap();
+            config::add_manual_allow(&mut c, app)
+        }),
+        scan: Arc::new(move || {
+            let cfg = cfg_scan.lock().unwrap().clone();
+            handle.block_on(tray_scan_once(&cfg))
+        }),
     })
 }
 

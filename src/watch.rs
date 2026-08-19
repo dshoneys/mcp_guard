@@ -25,6 +25,8 @@ impl Watcher for SoftWatcher {
 }
 
 pub fn run(cfg: &Config) -> Result<WatchReport> {
+    let mut gate = cfg.gate.clone();
+    crate::config::merge_manual_allows(&mut gate)?;
     let af = AddressFamilyFlags::IPV4 | AddressFamilyFlags::IPV6;
     let sockets = get_sockets_info(af, ProtocolFlags::TCP)
         .context("enumerate TCP sockets (netstat2)")?;
@@ -51,7 +53,7 @@ pub fn run(cfg: &Config) -> Result<WatchReport> {
             for p in si
                 .associated_pids
                 .iter()
-                .map(|pid| resolve_process(&sys, *pid, &cfg.gate))
+                .map(|pid| resolve_process(&sys, *pid, &gate))
             {
                 if !listeners.iter().any(|x: &PeerProcess| x.pid == p.pid) {
                     listeners.push(p);
@@ -82,11 +84,11 @@ pub fn run(cfg: &Config) -> Result<WatchReport> {
                     let procs: Vec<PeerProcess> = si
                         .associated_pids
                         .iter()
-                        .map(|pid| resolve_process(&sys, *pid, &cfg.gate))
+                        .map(|pid| resolve_process(&sys, *pid, &gate))
                         .collect();
                     // Full listen enumerate would flood if every local TCP peer is an alert.
                     // Only raise when the listener side looks like an agent/MCP surface.
-                    let unknown = cfg.gate.alert_on_unknown
+                    let unknown = gate.alert_on_unknown
                         && surface
                         && procs.iter().any(|p| !p.allowed)
                         && !procs.is_empty();

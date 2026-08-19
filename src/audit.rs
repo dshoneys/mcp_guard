@@ -3,6 +3,7 @@
 use crate::config::AuditConfig;
 use crate::contracts::{AlertSink, AlertSnapshot, RiskDetail, RiskKind, StatusSource};
 use crate::serve::{infer_app_name, mcp_surface_label};
+use crate::watch::is_allowed;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -181,7 +182,9 @@ fn rollup_from_jsonl(path: &Path) -> Result<AuditRollup> {
 /// - `activity_count` ← last watch's `alert_count`, or recent `activity_alert` rows within TTL
 pub fn snapshot_from_jsonl(path: &Path, activity_alert_ttl_secs: u64) -> Result<AlertSnapshot> {
     let rollup = rollup_from_jsonl(path)?;
-    let recent_activity = recent_activity_risks(&rollup.activity_alerts, activity_alert_ttl_secs);
+    let gate = activity_gate()?;
+    let recent_activity =
+        filter_allowed_activity(recent_activity_risks(&rollup.activity_alerts, activity_alert_ttl_secs), &gate);
     let activity_count = rollup.activity_count.max(recent_activity.len());
     Ok(AlertSnapshot {
         exposure_count: rollup.exposure_count,
@@ -218,6 +221,9 @@ pub fn latest_risks_from_jsonl(path: &Path, activity_alert_ttl_secs: u64) -> Res
             activity_alert_ttl_secs,
         ));
     }
+
+    let gate = activity_gate()?;
+    risks = filter_allowed_activity(risks, &gate);
 
     Ok(risks)
 }
@@ -326,6 +332,25 @@ fn append_recent_activity_note(risk: &mut RiskDetail) {
             risk.note.push_str(RECENT_ACTIVITY_NOTE_SUFFIX);
         }
     }
+}
+
+fn activity_gate() -> Result<crate::config::GateConfig> {
+    Ok(crate::config::load(None)?.gate)
+}
+
+fn filter_allowed_activity(risks: Vec<RiskDetail>, gate: &crate::config::GateConfig) -> Vec<RiskDetail> {
+    risks
+        .into_iter()
+        .filter(|r| {
+            if r.kind != RiskKind::Activity {
+                return true;
+            }
+            if r.app.trim().is_empty() {
+                return true;
+            }
+            !is_allowed(&r.app, None, gate)
+        })
+        .collect()
 }
 
 fn parse_risk_value(item: &Value, fallback_kind: RiskKind) -> Option<RiskDetail> {

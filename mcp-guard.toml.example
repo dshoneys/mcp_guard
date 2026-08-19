@@ -23,6 +23,7 @@ interval_secs = 30
 # Substring match on process name or exe path (case-insensitive)
 allow_process_names = ["mcp-guard", "WorkBuddy", "CodeBuddy", "node"]
 alert_on_unknown = true
+# Manual allows from dashboard are appended to mcp-guard-manual-allows.json
 
 [vault]
 store_path = "mcp-guard-vault.enc"

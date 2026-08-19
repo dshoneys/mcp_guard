@@ -51,6 +51,8 @@ risk_kind_warn = "Warning"
 risk_kind_mcp = "Elevated"
 risk_kind_activity = "Suspicious client"
 risk_mcp_line = "{mcp} · port {port}"
+risk_allow = "Allow manually"
+preview_allow = "Preview: allowed {app}"
 
 [plugins]
 title = "Extensions"

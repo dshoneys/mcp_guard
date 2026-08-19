@@ -128,6 +128,10 @@ pub struct DashboardStrings {
     pub risk_kind_activity: String,
     #[serde(default = "zh_risk_mcp_line")]
     pub risk_mcp_line: String,
+    #[serde(default = "zh_risk_allow")]
+    pub risk_allow: String,
+    #[serde(default = "zh_preview_allow")]
+    pub preview_allow: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -239,6 +243,12 @@ pub struct ToastStrings {
     pub vault_save_fail_title: String,
     #[serde(default = "zh_toast_vault_df")]
     pub vault_delete_fail_title: String,
+    #[serde(default = "zh_toast_allow_t")]
+    pub allow_title: String,
+    #[serde(default = "zh_toast_allow_saved")]
+    pub allow_saved: String,
+    #[serde(default = "zh_toast_allow_fail")]
+    pub allow_fail_title: String,
 }
 
 fn zh_idle() -> String {
@@ -378,6 +388,12 @@ fn zh_risk_kind_activity() -> String {
 }
 fn zh_risk_mcp_line() -> String {
     "{mcp} · 端口 {port}".into()
+}
+fn zh_risk_allow() -> String {
+    "手工放过".into()
+}
+fn zh_preview_allow() -> String {
+    "预览：已放过 {app}".into()
 }
 fn zh_flag_cors_star() -> String {
     "CORS 允许任意来源（Access-Control-Allow-Origin: *），网页可跨域调用".into()
@@ -520,6 +536,15 @@ fn zh_toast_vault_sf() -> String {
 fn zh_toast_vault_df() -> String {
     "MCP Guard — 删除失败".into()
 }
+fn zh_toast_allow_t() -> String {
+    "MCP Guard — 白名单".into()
+}
+fn zh_toast_allow_saved() -> String {
+    "已允许 {app}，后续不再对此进程告警。".into()
+}
+fn zh_toast_allow_fail() -> String {
+    "MCP Guard — 放过失败".into()
+}
 
 impl Default for StatusStrings {
     fn default() -> Self {
@@ -582,6 +607,8 @@ impl Default for DashboardStrings {
             risk_kind_mcp: zh_risk_kind_mcp(),
             risk_kind_activity: zh_risk_kind_activity(),
             risk_mcp_line: zh_risk_mcp_line(),
+            risk_allow: zh_risk_allow(),
+            preview_allow: zh_preview_allow(),
         }
     }
 }
@@ -653,6 +680,9 @@ impl Default for ToastStrings {
             vault_missing: zh_toast_vault_miss(),
             vault_save_fail_title: zh_toast_vault_sf(),
             vault_delete_fail_title: zh_toast_vault_df(),
+            allow_title: zh_toast_allow_t(),
+            allow_saved: zh_toast_allow_saved(),
+            allow_fail_title: zh_toast_allow_fail(),
         }
     }
 }
@@ -784,6 +814,8 @@ impl Catalog {
                 "risk_kind_mcp": self.dashboard.risk_kind_mcp,
                 "risk_kind_activity": self.dashboard.risk_kind_activity,
                 "risk_mcp_line": self.dashboard.risk_mcp_line,
+                "risk_allow": self.dashboard.risk_allow,
+                "preview_allow": self.dashboard.preview_allow,
             },
             "plugins": {
                 "title": self.plugins.title,

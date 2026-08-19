@@ -196,14 +196,81 @@ pub fn load(explicit: Option<&Path>) -> Result<Config> {
             p.exists().then_some(p)
         });
 
-    match path {
-        None => Ok(Config::default()),
+    let mut cfg = match path {
+        None => Config::default(),
         Some(p) => {
             let raw = std::fs::read_to_string(&p)
                 .with_context(|| format!("read config {}", p.display()))?;
-            let cfg: Config = toml::from_str(&raw)
-                .with_context(|| format!("parse config {}", p.display()))?;
-            Ok(cfg)
+            toml::from_str(&raw).with_context(|| format!("parse config {}", p.display()))?
+        }
+    };
+    merge_manual_allows(&mut cfg.gate)?;
+    Ok(cfg)
+}
+
+/// JSON list of operator-approved client process tokens (merged into `[gate]`).
+pub const MANUAL_ALLOWS_FILE: &str = "mcp-guard-manual-allows.json";
+
+/// Normalize UI/process names for gate substring matching (`msedge.exe` → `msedge`).
+pub fn normalize_allow_token(raw: &str) -> String {
+    let s = raw.trim();
+    if s.is_empty() {
+        return String::new();
+    }
+    let base = s.rsplit(['\\', '/']).next().unwrap_or(s);
+    base.strip_suffix(".exe")
+        .or_else(|| base.strip_suffix(".EXE"))
+        .unwrap_or(base)
+        .to_string()
+}
+
+pub fn load_manual_allows() -> Result<Vec<String>> {
+    let path = PathBuf::from(MANUAL_ALLOWS_FILE);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let raw = std::fs::read_to_string(&path)
+        .with_context(|| format!("read manual allows {}", path.display()))?;
+    let list: Vec<String> = serde_json::from_str(&raw)
+        .with_context(|| format!("parse manual allows {}", path.display()))?;
+    Ok(list
+        .into_iter()
+        .map(|s| normalize_allow_token(&s))
+        .filter(|s| !s.is_empty())
+        .collect())
+}
+
+fn save_manual_allows(list: &[String]) -> Result<()> {
+    let path = PathBuf::from(MANUAL_ALLOWS_FILE);
+    let raw = serde_json::to_string_pretty(list)?;
+    std::fs::write(&path, raw).with_context(|| format!("write manual allows {}", path.display()))?;
+    Ok(())
+}
+
+pub fn merge_manual_allows(gate: &mut GateConfig) -> Result<()> {
+    for name in load_manual_allows()? {
+        if !gate
+            .allow_process_names
+            .iter()
+            .any(|x| x.eq_ignore_ascii_case(&name))
+        {
+            gate.allow_process_names.push(name);
         }
     }
+    Ok(())
+}
+
+/// Persist a manual allow and merge into the in-memory gate config.
+pub fn add_manual_allow(cfg: &mut Config, process: &str) -> Result<String> {
+    let token = normalize_allow_token(process);
+    if token.is_empty() {
+        anyhow::bail!("process name required");
+    }
+    let mut list = load_manual_allows()?;
+    if !list.iter().any(|x| x.eq_ignore_ascii_case(&token)) {
+        list.push(token.clone());
+        save_manual_allows(&list)?;
+    }
+    merge_manual_allows(&mut cfg.gate)?;
+    Ok(token)
 }
