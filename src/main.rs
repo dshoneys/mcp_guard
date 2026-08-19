@@ -158,7 +158,7 @@ async fn main() -> Result<()> {
         }
         Commands::Status { ui } => {
             let ui_cfg = ui_shell::load_ui_bundle(ui.as_deref(), locale)?;
-            let snap = JsonlStatusSource.snapshot(&cfg.audit.path)?;
+            let snap = JsonlStatusSource::from_audit_cfg(&cfg.audit).snapshot(&cfg.audit.path)?;
             let model =
                 ui_shell::build_menu(&snap, &cfg.audit.path, &ui_cfg.catalog, false);
             ui_shell::print_status_json(&model, &snap)?;
@@ -258,6 +258,7 @@ fn run_tray_with_options(
         let catalog = Arc::new(ui_cfg.catalog);
         let audit_path = cfg.audit.path.clone();
         let audit_for_status = audit_path.clone();
+        let activity_alert_ttl_secs = cfg.audit.activity_alert_ttl_secs;
         let cancel = Arc::new(AtomicBool::new(false));
         let cancel_quit = Arc::clone(&cancel);
 
@@ -362,7 +363,9 @@ fn run_tray_with_options(
             catalog: catalog_tray,
             refresh_secs: cfg.serve.interval_secs.max(5),
             mute_until: Arc::clone(&mute_until),
-            status: Box::new(move || JsonlStatusSource.snapshot(&audit_for_status)),
+            status: Box::new(move || {
+                JsonlStatusSource::new(activity_alert_ttl_secs).snapshot(&audit_for_status)
+            }),
             hooks: ui_shell::NativeTrayHooks {
                 open_dashboard: Box::new({
                     let f = Arc::clone(&open_dashboard_fn);
@@ -415,6 +418,7 @@ fn dashboard_hooks(
     let audit_path = cfg.audit.path.clone();
     let audit_status = audit_path.clone();
     let audit_risks = audit_path.clone();
+    let activity_alert_ttl_secs = cfg.audit.activity_alert_ttl_secs;
     let cfg_scan = cfg.clone();
     let vault = Arc::new(vault::Vault::open(&cfg.vault)?);
     let handle = scan_rt.handle().clone();
@@ -426,10 +430,12 @@ fn dashboard_hooks(
         hide_to_tray,
         show_handle,
         status: Arc::new(move || {
-            let snap = JsonlStatusSource.snapshot(&audit_status)?;
+            let snap = JsonlStatusSource::new(activity_alert_ttl_secs).snapshot(&audit_status)?;
             Ok((snap, false))
         }),
-        risks: Arc::new(move || mcp_guard::audit::latest_risks_from_jsonl(&audit_risks)),
+        risks: Arc::new(move || {
+            mcp_guard::audit::latest_risks_from_jsonl(&audit_risks, activity_alert_ttl_secs)
+        }),
         scan: Arc::new(move || handle.block_on(tray_scan_once(&cfg_scan))),
     })
 }
@@ -472,7 +478,7 @@ async fn run_console_tray(
     locale: Option<&str>,
 ) -> Result<()> {
     let ui_cfg = ui_shell::load_ui_bundle(ui_path, locale)?;
-    let source = JsonlStatusSource;
+    let source = JsonlStatusSource::from_audit_cfg(&cfg.audit);
     let mut mute_until: Option<SystemTime> = None;
 
     println!(

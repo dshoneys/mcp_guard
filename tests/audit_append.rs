@@ -12,7 +12,10 @@ fn append_creates_parent_and_valid_jsonl() {
     let path = dir.join("nested").join("audit.jsonl");
     let _ = fs::remove_dir_all(&dir);
 
-    let cfg = AuditConfig { path: path.clone() };
+    let cfg = AuditConfig {
+        path: path.clone(),
+        ..AuditConfig::default()
+    };
     audit::append(&cfg, "scan", serde_json::json!({"ok": true})).unwrap();
     audit::append(&cfg, "exposure_alert", serde_json::json!({"n": 1})).unwrap();
 

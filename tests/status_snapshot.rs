@@ -1,5 +1,6 @@
-use mcp_guard::audit::snapshot_from_jsonl;
-use mcp_guard::contracts::AlertSnapshot;
+use chrono::Utc;
+use mcp_guard::audit::{latest_risks_from_jsonl, snapshot_from_jsonl, DEFAULT_ACTIVITY_ALERT_TTL_SECS};
+use mcp_guard::contracts::{AlertSnapshot, RiskKind};
 use std::fs;
 use std::io::Write;
 
@@ -10,7 +11,7 @@ fn missing_file_is_empty_snapshot() {
         std::process::id()
     ));
     let _ = fs::remove_file(&path);
-    let snap = snapshot_from_jsonl(&path).unwrap();
+    let snap = snapshot_from_jsonl(&path, DEFAULT_ACTIVITY_ALERT_TTL_SECS).unwrap();
     assert_eq!(snap, AlertSnapshot::default());
 }
 
@@ -54,7 +55,7 @@ fn current_posture_from_latest_scan_watch() {
     )
     .unwrap();
 
-    let snap = snapshot_from_jsonl(&path).unwrap();
+    let snap = snapshot_from_jsonl(&path, DEFAULT_ACTIVITY_ALERT_TTL_SECS).unwrap();
     assert_eq!(snap.exposure_count, 0);
     assert_eq!(snap.activity_count, 0);
     assert_eq!(snap.last_scan_at.as_deref(), Some("2026-01-01T00:04:00Z"));
@@ -79,8 +80,50 @@ fn latest_dirty_scan_keeps_exposure() {
         r#"{{"ts":"2026-01-01T00:01:00Z","kind":"watch","detail":{{"alert_count":0}}}}"#
     )
     .unwrap();
-    let snap = snapshot_from_jsonl(&path).unwrap();
+    let snap = snapshot_from_jsonl(&path, DEFAULT_ACTIVITY_ALERT_TTL_SECS).unwrap();
     assert_eq!(snap.exposure_count, 2);
     assert_eq!(snap.activity_count, 0);
+    let _ = fs::remove_file(&path);
+}
+
+#[test]
+fn recent_activity_alert_survives_clean_watch_for_dashboard() {
+    let path = std::env::temp_dir().join(format!(
+        "mcp-guard-recent-activity-{}.jsonl",
+        std::process::id()
+    ));
+    let ts = Utc::now().to_rfc3339();
+    let mut f = fs::File::create(&path).unwrap();
+    writeln!(
+        f,
+        r#"{{"ts":"{ts}","kind":"scan","detail":{{"exposure_count":0,"open_services":[]}}}}"#
+    )
+    .unwrap();
+    writeln!(
+        f,
+        r#"{{"ts":"{ts}","kind":"watch","detail":{{"alert_count":1}}}}"#
+    )
+    .unwrap();
+    writeln!(
+        f,
+        r#"{{"ts":"{ts}","kind":"activity_alert","detail":{{"alert_count":1,"risks":[{{"app":"msedge.exe","flags":["unknown_client"],"kind":"activity","mcp":"本机 loopback MCP 表面 :3797","note":"连入 127.0.0.1:60447 → 127.0.0.1:3797（监听方：node.exe）","port":3797}}]}}}}"#
+    )
+    .unwrap();
+    writeln!(
+        f,
+        r#"{{"ts":"{ts}","kind":"watch","detail":{{"alert_count":0}}}}"#
+    )
+    .unwrap();
+
+    let snap = snapshot_from_jsonl(&path, DEFAULT_ACTIVITY_ALERT_TTL_SECS).unwrap();
+    assert_eq!(snap.activity_count, 1);
+
+    let risks = latest_risks_from_jsonl(&path, DEFAULT_ACTIVITY_ALERT_TTL_SECS).unwrap();
+    assert_eq!(risks.len(), 1);
+    assert_eq!(risks[0].kind, RiskKind::Activity);
+    assert_eq!(risks[0].port, 3797);
+    assert_eq!(risks[0].app, "msedge.exe");
+    assert!(risks[0].note.contains("连接已断开"));
+
     let _ = fs::remove_file(&path);
 }

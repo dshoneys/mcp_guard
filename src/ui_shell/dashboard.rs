@@ -212,9 +212,6 @@ fn risks_from_audit_js(catalog: &Catalog, snap: &AlertSnapshot, risks: &[crate::
     if risks.is_empty() && snap.exposure_count == 0 && snap.activity_count == 0 {
         return None;
     }
-    if risks.is_empty() {
-        return None;
-    }
     let (kind, headline) = if snap.activity_count > 0 {
         ("danger", catalog.dashboard.scan_panel_danger.as_str())
     } else if snap.exposure_count > 0 {

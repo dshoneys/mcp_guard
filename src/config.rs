@@ -111,12 +111,15 @@ impl Default for GitScanConfig {
 pub struct AuditConfig {
     /// JSONL audit log path.
     pub path: PathBuf,
+    /// Keep transient activity alerts visible in tray/dashboard after connections close.
+    pub activity_alert_ttl_secs: u64,
 }
 
 impl Default for AuditConfig {
     fn default() -> Self {
         Self {
             path: PathBuf::from("mcp-guard-audit.jsonl"),
+            activity_alert_ttl_secs: 600,
         }
     }
 }

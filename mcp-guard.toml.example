@@ -13,6 +13,8 @@ xss_max_probes_per_port = 6
 
 [audit]
 path = "mcp-guard-audit.jsonl"
+# Show recent activity alerts in dashboard/tray after connections close (seconds)
+activity_alert_ttl_secs = 600
 
 [serve]
 interval_secs = 30
