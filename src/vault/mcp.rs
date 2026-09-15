@@ -2,7 +2,7 @@
 
 use crate::vault::scrub::scrub_secret;
 use crate::vault::store::Vault;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 use std::process::Command;
@@ -62,12 +62,12 @@ fn tool_defs() -> Vec<Value> {
     vec![
         json!({
             "name": "vault_list",
-            "description": "List secret names in MCP Guard vault (no values).",
+            "description": "List secret names and aliases in MCP Guard vault (no values).",
             "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
         }),
         json!({
             "name": "vault_issue_ref",
-            "description": "Issue a short-lived opaque ref for a named secret. Never returns plaintext.",
+            "description": "Issue a short-lived opaque ref for a named secret (or alias). Never returns plaintext.",
             "inputSchema": {
                 "type": "object",
                 "properties": { "name": { "type": "string" } },
@@ -86,17 +86,58 @@ fn tool_defs() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "vault_run_with_secret",
-            "description": "Run a local command with SECRET=<value> in env. Stdout/stderr are scrubbed. Plaintext never returned.",
+            "name": "vault_rename",
+            "description": "Rename a canonical secret. Aliases that pointed at the old name are updated. No plaintext returned.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "name": { "type": "string", "description": "Secret name" },
+                    "from": { "type": "string" },
+                    "to": { "type": "string" }
+                },
+                "required": ["from", "to"],
+                "additionalProperties": false
+            }
+        }),
+        json!({
+            "name": "vault_alias",
+            "description": "Create or update an alias → secret name (for scripts that need a specific env/token name). No plaintext.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "alias": { "type": "string" },
+                    "name": { "type": "string", "description": "Canonical secret name (or existing alias)" }
+                },
+                "required": ["alias", "name"],
+                "additionalProperties": false
+            }
+        }),
+        json!({
+            "name": "vault_unalias",
+            "description": "Remove an alias (does not delete the secret).",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "alias": { "type": "string" } },
+                "required": ["alias"],
+                "additionalProperties": false
+            }
+        }),
+        json!({
+            "name": "vault_run_with_secret",
+            "description": "Run a local command with secret(s) injected into env. Use name+env_key for one secret, or env_map {ENV_VAR: vault_name_or_alias} for several. Stdout/stderr scrubbed. Plaintext never returned.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string", "description": "Secret name or alias (single-secret mode)" },
                     "command": { "type": "string" },
                     "args": { "type": "array", "items": { "type": "string" } },
-                    "env_key": { "type": "string", "description": "Env var name (default SECRET)" }
+                    "env_key": { "type": "string", "description": "Env var name for single-secret mode (default SECRET)" },
+                    "env_map": {
+                        "type": "object",
+                        "description": "Mapping ENV_VAR → vault secret name/alias (multi-secret mode)",
+                        "additionalProperties": { "type": "string" }
+                    }
                 },
-                "required": ["name", "command"],
+                "required": ["command"],
                 "additionalProperties": false
             }
         }),
@@ -118,7 +159,8 @@ fn handle_tools_call(vault: &Vault, params: &Value) -> Result<Value> {
     let payload = match name {
         "vault_list" => {
             let list = vault.list()?;
-            json!({ "secrets": list })
+            let aliases = vault.list_aliases()?;
+            json!({ "secrets": list, "aliases": aliases })
         }
         "vault_issue_ref" => {
             let secret_name = args
@@ -140,6 +182,39 @@ fn handle_tools_call(vault: &Vault, params: &Value) -> Result<Value> {
                 .ok_or_else(|| anyhow::anyhow!("ref required"))?;
             vault.ref_info(id)?
         }
+        "vault_rename" => {
+            let from = args
+                .get("from")
+                .and_then(|n| n.as_str())
+                .ok_or_else(|| anyhow::anyhow!("from required"))?;
+            let to = args
+                .get("to")
+                .and_then(|n| n.as_str())
+                .ok_or_else(|| anyhow::anyhow!("to required"))?;
+            vault.rename(from, to)?;
+            json!({ "renamed": true, "from": from, "to": to })
+        }
+        "vault_alias" => {
+            let alias = args
+                .get("alias")
+                .and_then(|n| n.as_str())
+                .ok_or_else(|| anyhow::anyhow!("alias required"))?;
+            let target = args
+                .get("name")
+                .and_then(|n| n.as_str())
+                .ok_or_else(|| anyhow::anyhow!("name required"))?;
+            vault.set_alias(alias, target)?;
+            let canonical = vault.canonical_name(alias)?;
+            json!({ "alias": alias, "name": canonical })
+        }
+        "vault_unalias" => {
+            let alias = args
+                .get("alias")
+                .and_then(|n| n.as_str())
+                .ok_or_else(|| anyhow::anyhow!("alias required"))?;
+            let removed = vault.remove_alias(alias)?;
+            json!({ "alias": alias, "removed": removed })
+        }
         "vault_run_with_secret" => run_with_secret(vault, &args)?,
         other => anyhow::bail!("unknown tool: {other}"),
     };
@@ -153,10 +228,6 @@ fn handle_tools_call(vault: &Vault, params: &Value) -> Result<Value> {
 }
 
 fn run_with_secret(vault: &Vault, args: &Value) -> Result<Value> {
-    let secret_name = args
-        .get("name")
-        .and_then(|n| n.as_str())
-        .ok_or_else(|| anyhow::anyhow!("name required"))?;
     let command = args
         .get("command")
         .and_then(|n| n.as_str())
@@ -170,28 +241,62 @@ fn run_with_secret(vault: &Vault, args: &Value) -> Result<Value> {
                 .collect()
         })
         .unwrap_or_default();
-    let env_key = args
-        .get("env_key")
-        .and_then(|n| n.as_str())
-        .unwrap_or("SECRET");
 
-    let secret = vault.resolve_local(secret_name)?;
-    let output = Command::new(command)
-        .args(&cmd_args)
-        .env(env_key, &secret)
+    // Build ENV_VAR → plaintext locally (never returned).
+    let mut injections: Vec<(String, String, String)> = Vec::new(); // env_key, vault_name, value
+    if let Some(map) = args.get("env_map").and_then(|v| v.as_object()) {
+        if map.is_empty() {
+            bail!("env_map must not be empty");
+        }
+        for (env_key, vault_name_v) in map {
+            let vault_name = vault_name_v
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("env_map values must be strings"))?;
+            let canonical = vault.canonical_name(vault_name)?;
+            let secret = vault.resolve_local(&canonical)?;
+            injections.push((env_key.clone(), canonical, secret));
+        }
+    } else {
+        let secret_name = args
+            .get("name")
+            .and_then(|n| n.as_str())
+            .ok_or_else(|| anyhow::anyhow!("name or env_map required"))?;
+        let env_key = args
+            .get("env_key")
+            .and_then(|n| n.as_str())
+            .unwrap_or("SECRET");
+        let canonical = vault.canonical_name(secret_name)?;
+        let secret = vault.resolve_local(&canonical)?;
+        injections.push((env_key.to_string(), canonical, secret));
+    }
+
+    let mut cmd = Command::new(command);
+    cmd.args(&cmd_args);
+    for (env_key, _, secret) in &injections {
+        cmd.env(env_key, secret);
+    }
+    let output = cmd
         .output()
         .with_context(|| format!("spawn {command}"))?;
 
-    let stdout = scrub_secret(&String::from_utf8_lossy(&output.stdout), &secret);
-    let stderr = scrub_secret(&String::from_utf8_lossy(&output.stderr), &secret);
+    let mut stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let mut stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    for (_, _, secret) in &injections {
+        stdout = scrub_secret(&stdout, secret);
+        stderr = scrub_secret(&stderr, secret);
+    }
+
+    let mapping: Vec<Value> = injections
+        .iter()
+        .map(|(env_key, name, _)| json!({ "env_key": env_key, "secret_name": name }))
+        .collect();
 
     Ok(json!({
         "exit_code": output.status.code(),
         "stdout": stdout,
         "stderr": stderr,
-        "env_key": env_key,
-        "secret_name": secret_name,
-        "note": "Secret value was injected into env only and scrubbed from captured output."
+        "mapping": mapping,
+        "note": "Secret value(s) injected into env only and scrubbed from captured output."
     }))
 }
 

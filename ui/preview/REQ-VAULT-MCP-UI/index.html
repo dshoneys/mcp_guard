@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MCP Guard — Vault MCP / Cursor install</title>
+  <link rel="stylesheet" href="../../tokens.css" />
+  <style>
+    :root { --pad: clamp(1.5rem, 4vw, 2.75rem); }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, #243044 0%, transparent 55%),
+        var(--mg-bg);
+      color: var(--mg-text);
+      font-family: var(--mg-font);
+    }
+    .shell {
+      max-width: 560px;
+      margin: 0 auto;
+      padding: var(--pad);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    h1 { margin: 0; font-size: 1.6rem; letter-spacing: -0.03em; }
+    .hint { margin: 0; color: var(--mg-muted); font-size: 0.9rem; line-height: 1.45; }
+    .states { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .states button {
+      border: 1px solid #333846;
+      background: transparent;
+      color: var(--mg-text);
+      border-radius: 8px;
+      padding: 0.35rem 0.6rem;
+      font: inherit;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+    .vault-agent {
+      border: 1px solid #333846;
+      border-radius: 12px;
+      padding: 0.85rem;
+      background: color-mix(in srgb, var(--mg-surface) 88%, #1a2230);
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+    .vault-agent .atitle { margin: 0; font-size: 0.82rem; font-weight: 700; }
+    .vault-agent .astatus { margin: 0; font-size: 0.9rem; line-height: 1.4; }
+    .vault-agent .adetail { margin: 0; font-size: 0.75rem; color: var(--mg-muted); word-break: break-all; }
+    .vault-agent .arow { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+    .vault-agent button {
+      border: 1px solid var(--mg-accent);
+      background: var(--mg-accent);
+      color: #0e1014;
+      border-radius: 10px;
+      padding: 0.4rem 0.75rem;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .vault-agent button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .vault-agent[data-state="installed"] { border-color: color-mix(in srgb, var(--mg-ok) 45%, #333846); }
+    .vault-agent[data-state="broken"] { border-color: color-mix(in srgb, var(--mg-danger) 50%, #333846); }
+    .note { color: var(--mg-muted); font-size: 0.8rem; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="shell" data-widget="vault-mcp">
+    <h1>Agent 接入（Cursor）</h1>
+    <p class="hint">Code-as-Design for REQ-VAULT-MCP-UI · also embedded in <code>REQ-MAIN-UI</code> vault view.</p>
+    <div class="states" id="demo-states"></div>
+    <aside class="vault-agent" id="vault-agent" data-state="not_installed">
+      <p class="atitle">Agent 接入（Cursor）</p>
+      <p class="astatus" id="vault-mcp-status">已检测到 Cursor，尚未接入 vault-mcp。</p>
+      <p class="adetail" id="vault-mcp-detail">Missing `mcp-guard-vault` · ~/.cursor/mcp.json</p>
+      <div class="arow">
+        <button type="button" id="vault-mcp-cta">一键安装</button>
+        <span class="adetail">写入后请在 Cursor 重载 MCP。</span>
+      </div>
+    </aside>
+    <p class="note" id="note"></p>
+  </div>
+  <script>
+    const copy = {
+      no_cursor: "未检测到本机 Cursor。安装 Cursor 后回到此处接入 vault-mcp。",
+      not_installed: "已检测到 Cursor，尚未接入 vault-mcp。",
+      installed: "已接入 vault-mcp。若工具未出现，请在 Cursor 中重载 MCP。",
+      broken: "配置异常，可一键修复。",
+      probing: "正在检测…",
+      busy: "正在写入 mcp.json…",
+    };
+    const cta = {
+      not_installed: "一键安装",
+      broken: "一键修复",
+      installed: "重新写入",
+    };
+    function apply(state) {
+      const box = document.getElementById("vault-agent");
+      box.dataset.state = state;
+      document.getElementById("vault-mcp-status").textContent = copy[state] || copy.broken;
+      const btn = document.getElementById("vault-mcp-cta");
+      const label = cta[state];
+      btn.hidden = !label;
+      btn.disabled = state === "probing" || state === "busy" || state === "no_cursor";
+      btn.textContent = label || "";
+      document.getElementById("vault-mcp-detail").textContent =
+        state === "no_cursor" ? "" : "~/.cursor/mcp.json · mcp-guard-vault";
+    }
+    const bar = document.getElementById("demo-states");
+    ["no_cursor", "not_installed", "installed", "broken", "probing", "busy"].forEach((s) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = s;
+      b.onclick = () => apply(s);
+      bar.appendChild(b);
+    });
+    document.getElementById("vault-mcp-cta").onclick = () => {
+      apply("busy");
+      setTimeout(() => {
+        apply("installed");
+        document.getElementById("note").textContent = "预览：已写入（请重载 Cursor MCP）";
+      }, 500);
+    };
+  </script>
+</body>
+</html>

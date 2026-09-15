@@ -24,6 +24,7 @@ Source of truth: `model/requirements.json`.
 | REQ-VAULT-NOCONTEXT | vault | unit | no | `tests/vault_mcp_nocontext.rs` | ✅ |
 | REQ-VAULT-MCP | vault | manual | no | Cursor `vault-mcp` | human |
 | REQ-VAULT-UI | ui_shell | manual | UX+UI accepted | dashboard § vault | in progress (人测) |
+| REQ-VAULT-MCP-UI | ui_shell / vault | unit | UX+UI accepted | `src/vault/cursor_install.rs` (+ dashboard strip) | in progress |
 | REQ-I18N | ui_shell | unit | no | `tests/i18n_catalog.rs` | ✅ |
 | REQ-GIT-REASONING-LEAK | git_scan | unit | no | `tests/git_scan_detect.rs` | ✅ |
 | REQ-CASE-ARXIV-2608-09867 | cases | manual | no | `cases/arxiv-2608-09867` pack | human |

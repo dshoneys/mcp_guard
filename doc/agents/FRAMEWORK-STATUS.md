@@ -25,6 +25,7 @@
 |----|------|
 | REQ-TRAY-UI 人测 | 托盘 + **Scan now 必有 toast** |
 | REQ-VAULT-UI / REQ-VAULT-MCP 人测 | 面板存钥 + Cursor 接 `vault-mcp`，确认上下文无明文 |
+| REQ-VAULT-MCP-UI | UX+UI accepted：保险箱内检测 Cursor + 一键写入；人测重载 MCP |
 | Live scan/watch | WorkBuddy 环境 |
 | Hard gate | 未做 |
 | 告警详情窗 | 未做（下一 UX） |
@@ -35,7 +36,8 @@
 
 ## Next
 
-1. 人测 toast / vault / vault-mcp 后关掉 manual reqs  
-2. 可选：告警详情小窗（新 UX）  
-3. Windows 安装/自启  
-4. Hard gate
+1. **REQ-VAULT-MCP-UI**：UI preview（`ui/preview/REQ-VAULT-MCP-UI`）→ module 实现 probe/install → 人测  
+2. 人测 toast / vault / vault-mcp 后关掉 manual reqs  
+3. 可选：告警详情小窗（新 UX）  
+4. Windows 安装/自启  
+5. Hard gate

@@ -41,3 +41,22 @@ fn issue_ref_has_no_value_and_resolves_locally() {
     assert_eq!(name, "db");
     assert_eq!(secret, "hunter2");
 }
+
+#[test]
+fn alias_and_rename() {
+    let cfg = tmp_cfg("alias");
+    let v = Vault::open(&cfg).unwrap();
+    v.put("GITLIB_TOKEN", "tok-abc").unwrap();
+    v.set_alias("GITLAB_TOKEN", "GITLIB_TOKEN").unwrap();
+    assert_eq!(v.resolve_local("GITLAB_TOKEN").unwrap(), "tok-abc");
+    let aliases = v.list_aliases().unwrap();
+    assert_eq!(aliases.len(), 1);
+    assert_eq!(aliases[0].alias, "GITLAB_TOKEN");
+    assert_eq!(aliases[0].name, "GITLIB_TOKEN");
+
+    v.rename("GITLIB_TOKEN", "gitlab_token").unwrap();
+    assert_eq!(v.resolve_local("GITLAB_TOKEN").unwrap(), "tok-abc");
+    assert_eq!(v.canonical_name("GITLAB_TOKEN").unwrap(), "gitlab_token");
+    assert!(v.remove_alias("GITLAB_TOKEN").unwrap());
+    assert!(v.list_aliases().unwrap().is_empty());
+}

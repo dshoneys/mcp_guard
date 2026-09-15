@@ -36,7 +36,13 @@ pub struct NativeTrayConfig {
 }
 
 pub fn run_native_tray(mut cfg: NativeTrayConfig) -> Result<()> {
-    let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
+    let mut event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
+    #[cfg(target_os = "macos")]
+    {
+        // tao defaults to Regular (Dock tile). Set before run — overrides any early NSApp call.
+        use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
+        event_loop.set_activation_policy(ActivationPolicy::Accessory);
+    }
 
     let proxy = event_loop.create_proxy();
     TrayIconEvent::set_event_handler(Some(move |event| {

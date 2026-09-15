@@ -5,6 +5,8 @@
 mod dashboard;
 mod brand;
 mod i18n;
+#[cfg(target_os = "macos")]
+mod macos_process;
 #[cfg(any(windows, target_os = "macos"))]
 mod native;
 #[cfg(windows)]
@@ -13,6 +15,10 @@ pub use brand::brand_icon_rgba;
 #[cfg(any(windows, target_os = "macos"))]
 pub use dashboard::{run_dashboard, DashboardHooks, DashboardShowHandle};
 pub use i18n::{fmt_named, load_catalog, Catalog, DEFAULT_LOCALE};
+#[cfg(target_os = "macos")]
+pub use macos_process::{
+    activate_pid, install_show_signal_watcher, request_dashboard_show, set_accessory_policy,
+};
 #[cfg(any(windows, target_os = "macos"))]
 pub use native::{run_native_tray, NativeTrayConfig, NativeTrayHooks};
 #[cfg(windows)]
@@ -284,6 +290,19 @@ pub fn print_status_json(model: &TrayMenuModel, snap: &AlertSnapshot) -> Result<
 
 /// Best-effort desktop toast (Windows / macOS / Linux). Failures are logged, not fatal.
 pub fn notify(summary: &str, body: &str) {
+    #[cfg(target_os = "macos")]
+    {
+        use std::sync::Once;
+        static SET_APP: Once = Once::new();
+        SET_APP.call_once(|| {
+            // mac-notification-sys defaults to AppleScript
+            // `get id of application "use_default"`, which pops macOS
+            // "Where is use_default?" — set a real bundle id first.
+            if let Err(err) = notify_rust::set_application("com.apple.Terminal") {
+                tracing::debug!(error = %err, "notify set_application failed");
+            }
+        });
+    }
     match notify_rust::Notification::new()
         .appname("MCP Guard")
         .summary(summary)

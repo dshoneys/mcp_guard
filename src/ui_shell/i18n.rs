@@ -201,6 +201,28 @@ pub struct VaultStrings {
     pub preview_saved: String,
     #[serde(default = "zh_vault_preview_deleted")]
     pub preview_deleted: String,
+    #[serde(default = "zh_vault_agent_title")]
+    pub agent_title: String,
+    #[serde(default = "zh_vault_mcp_probing")]
+    pub mcp_probing: String,
+    #[serde(default = "zh_vault_mcp_no_cursor")]
+    pub mcp_no_cursor: String,
+    #[serde(default = "zh_vault_mcp_not_installed")]
+    pub mcp_not_installed: String,
+    #[serde(default = "zh_vault_mcp_installed")]
+    pub mcp_installed: String,
+    #[serde(default = "zh_vault_mcp_broken")]
+    pub mcp_broken: String,
+    #[serde(default = "zh_vault_mcp_busy")]
+    pub mcp_busy: String,
+    #[serde(default = "zh_vault_mcp_install")]
+    pub mcp_install: String,
+    #[serde(default = "zh_vault_mcp_repair")]
+    pub mcp_repair: String,
+    #[serde(default = "zh_vault_mcp_rewrite")]
+    pub mcp_rewrite: String,
+    #[serde(default = "zh_vault_mcp_reload_hint")]
+    pub mcp_reload_hint: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -243,6 +265,12 @@ pub struct ToastStrings {
     pub vault_save_fail_title: String,
     #[serde(default = "zh_toast_vault_df")]
     pub vault_delete_fail_title: String,
+    #[serde(default = "zh_toast_vault_mcp_ok")]
+    pub vault_mcp_ok_title: String,
+    #[serde(default = "zh_toast_vault_mcp_ok_body")]
+    pub vault_mcp_ok_body: String,
+    #[serde(default = "zh_toast_vault_mcp_fail")]
+    pub vault_mcp_fail_title: String,
     #[serde(default = "zh_toast_allow_t")]
     pub allow_title: String,
     #[serde(default = "zh_toast_allow_saved")]
@@ -479,6 +507,39 @@ fn zh_vault_preview_saved() -> String {
 fn zh_vault_preview_deleted() -> String {
     "预览：已删除「{name}」。".into()
 }
+fn zh_vault_agent_title() -> String {
+    "Agent 接入（Cursor）".into()
+}
+fn zh_vault_mcp_probing() -> String {
+    "正在检测…".into()
+}
+fn zh_vault_mcp_no_cursor() -> String {
+    "未检测到本机 Cursor。安装 Cursor 后回到此处接入 vault-mcp。".into()
+}
+fn zh_vault_mcp_not_installed() -> String {
+    "已检测到 Cursor，尚未接入 vault-mcp。".into()
+}
+fn zh_vault_mcp_installed() -> String {
+    "已接入 vault-mcp。若工具未出现，请在 Cursor 中重载 MCP。".into()
+}
+fn zh_vault_mcp_broken() -> String {
+    "配置异常，可一键修复。".into()
+}
+fn zh_vault_mcp_busy() -> String {
+    "正在写入 mcp.json…".into()
+}
+fn zh_vault_mcp_install() -> String {
+    "一键安装".into()
+}
+fn zh_vault_mcp_repair() -> String {
+    "一键修复".into()
+}
+fn zh_vault_mcp_rewrite() -> String {
+    "重新写入".into()
+}
+fn zh_vault_mcp_reload_hint() -> String {
+    "写入后请在 Cursor 重载 MCP / 重启窗口。".into()
+}
 fn zh_toast_act_t() -> String {
     "MCP Guard — 可疑活动".into()
 }
@@ -535,6 +596,15 @@ fn zh_toast_vault_sf() -> String {
 }
 fn zh_toast_vault_df() -> String {
     "MCP Guard — 删除失败".into()
+}
+fn zh_toast_vault_mcp_ok() -> String {
+    "MCP Guard — 已接入 Cursor".into()
+}
+fn zh_toast_vault_mcp_ok_body() -> String {
+    "已写入 mcp-guard-vault。请在 Cursor 重载 MCP。".into()
+}
+fn zh_toast_vault_mcp_fail() -> String {
+    "MCP Guard — 接入失败".into()
 }
 fn zh_toast_allow_t() -> String {
     "MCP Guard — 白名单".into()
@@ -655,6 +725,17 @@ impl Default for VaultStrings {
             confirm_delete: zh_vault_confirm(),
             preview_saved: zh_vault_preview_saved(),
             preview_deleted: zh_vault_preview_deleted(),
+            agent_title: zh_vault_agent_title(),
+            mcp_probing: zh_vault_mcp_probing(),
+            mcp_no_cursor: zh_vault_mcp_no_cursor(),
+            mcp_not_installed: zh_vault_mcp_not_installed(),
+            mcp_installed: zh_vault_mcp_installed(),
+            mcp_broken: zh_vault_mcp_broken(),
+            mcp_busy: zh_vault_mcp_busy(),
+            mcp_install: zh_vault_mcp_install(),
+            mcp_repair: zh_vault_mcp_repair(),
+            mcp_rewrite: zh_vault_mcp_rewrite(),
+            mcp_reload_hint: zh_vault_mcp_reload_hint(),
         }
     }
 }
@@ -680,6 +761,9 @@ impl Default for ToastStrings {
             vault_missing: zh_toast_vault_miss(),
             vault_save_fail_title: zh_toast_vault_sf(),
             vault_delete_fail_title: zh_toast_vault_df(),
+            vault_mcp_ok_title: zh_toast_vault_mcp_ok(),
+            vault_mcp_ok_body: zh_toast_vault_mcp_ok_body(),
+            vault_mcp_fail_title: zh_toast_vault_mcp_fail(),
             allow_title: zh_toast_allow_t(),
             allow_saved: zh_toast_allow_saved(),
             allow_fail_title: zh_toast_allow_fail(),
@@ -850,6 +934,17 @@ impl Catalog {
                 "confirm_delete": self.vault.confirm_delete,
                 "preview_saved": self.vault.preview_saved,
                 "preview_deleted": self.vault.preview_deleted,
+                "agent_title": self.vault.agent_title,
+                "mcp_probing": self.vault.mcp_probing,
+                "mcp_no_cursor": self.vault.mcp_no_cursor,
+                "mcp_not_installed": self.vault.mcp_not_installed,
+                "mcp_installed": self.vault.mcp_installed,
+                "mcp_broken": self.vault.mcp_broken,
+                "mcp_busy": self.vault.mcp_busy,
+                "mcp_install": self.vault.mcp_install,
+                "mcp_repair": self.vault.mcp_repair,
+                "mcp_rewrite": self.vault.mcp_rewrite,
+                "mcp_reload_hint": self.vault.mcp_reload_hint,
             }
         })
     }

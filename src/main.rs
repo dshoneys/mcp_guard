@@ -107,14 +107,23 @@ enum VaultCmd {
         #[arg(long)]
         value: Option<String>,
     },
-    /// Delete a secret by name
+    /// Delete a secret by name (also drops aliases pointing at it)
     Delete { name: String },
+    /// Rename a canonical secret
+    Rename { from: String, to: String },
+    /// Add/update alias → secret name
+    Alias {
+        alias: String,
+        #[arg(long = "to")]
+        name: String,
+    },
+    /// Remove an alias
+    Unalias { alias: String },
     /// Issue opaque ref for a secret (prints ref only)
     IssueRef { name: String },
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
@@ -124,10 +133,13 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     let cfg = config::load(cli.config.as_deref())?;
     let locale = cli.locale.as_deref();
+    // Keep CLI config path so macOS can spawn a dashboard child with the same flags.
+    let config_path = cli.config.clone();
 
     match cli.command {
         Commands::Scan { ports } => {
-            let report = scan::run(&cfg, &ports).await?;
+            let rt = tokio_rt()?;
+            let report = rt.block_on(scan::run(&cfg, &ports))?;
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
         Commands::GitScan { path, staged, fail } => {
@@ -149,11 +161,24 @@ async fn main() -> Result<()> {
                 if once {
                     tracing::warn!("--once is ignored with --tray (use Quit to stop)");
                 }
-                tokio::task::block_in_place(|| {
-                    run_tray_with_options(cfg, ui, /*agent*/ true, /*open_dashboard*/ true, locale)
-                })?;
+                // Must run on the OS main thread (macOS tao/wry EventLoop).
+                run_tray_with_options(
+                    cfg,
+                    ui,
+                    /*agent*/ true,
+                    /*open_dashboard*/ true,
+                    locale,
+                    config_path.as_deref(),
+                )?;
             } else {
-                serve::run_with(&cfg, once, &LoopbackScanner, &SoftWatcher, &JsonlSink).await?;
+                let rt = tokio_rt()?;
+                rt.block_on(serve::run_with(
+                    &cfg,
+                    once,
+                    &LoopbackScanner,
+                    &SoftWatcher,
+                    &JsonlSink,
+                ))?;
             }
         }
         Commands::Status { ui } => {
@@ -177,15 +202,23 @@ async fn main() -> Result<()> {
                 if !no_agent {
                     tracing::info!("console tray: start `serve` in another terminal for live agent, or omit --no-agent on native tray");
                 }
-                run_console_tray(&cfg, ui.as_deref(), locale).await?;
+                let rt = tokio_rt()?;
+                rt.block_on(run_console_tray(&cfg, ui.as_deref(), locale))?;
             } else {
-                tokio::task::block_in_place(|| {
-                    run_tray_with_options(cfg, ui, !no_agent, !no_dashboard, locale)
-                })?;
+                // Must run on the OS main thread (macOS tao/wry EventLoop).
+                run_tray_with_options(
+                    cfg,
+                    ui,
+                    !no_agent,
+                    !no_dashboard,
+                    locale,
+                    config_path.as_deref(),
+                )?;
             }
         }
         Commands::Dashboard { ui } => {
-            tokio::task::block_in_place(|| run_dashboard_cli(cfg, ui, locale))?;
+            // Must run on the OS main thread (macOS tao/wry EventLoop).
+            run_dashboard_cli(cfg, ui, locale)?;
         }
         Commands::Vault { action } => {
             let v = vault::Vault::open(&cfg.vault)?;
@@ -193,6 +226,9 @@ async fn main() -> Result<()> {
                 VaultCmd::List => {
                     for s in v.list()? {
                         println!("{}\t{}", s.name, s.updated_at);
+                    }
+                    for a in v.list_aliases()? {
+                        println!("alias:{}\t→\t{}", a.alias, a.name);
                     }
                 }
                 VaultCmd::Put { name, value } => {
@@ -215,6 +251,22 @@ async fn main() -> Result<()> {
                         println!("not found: {name}");
                     }
                 }
+                VaultCmd::Rename { from, to } => {
+                    v.rename(&from, &to)?;
+                    println!("renamed '{from}' → '{to}'");
+                }
+                VaultCmd::Alias { alias, name } => {
+                    v.set_alias(&alias, &name)?;
+                    let canonical = v.canonical_name(&alias)?;
+                    println!("alias '{alias}' → '{canonical}'");
+                }
+                VaultCmd::Unalias { alias } => {
+                    if v.remove_alias(&alias)? {
+                        println!("removed alias '{alias}'");
+                    } else {
+                        println!("alias not found: {alias}");
+                    }
+                }
                 VaultCmd::IssueRef { name } => {
                     let r = v.issue_ref(&name)?;
                     println!("{}", serde_json::to_string_pretty(&r)?);
@@ -234,6 +286,12 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+fn tokio_rt() -> Result<tokio::runtime::Runtime> {
+    Ok(tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?)
+}
+
 fn native_tray_supported() -> bool {
     cfg!(any(windows, target_os = "macos"))
 }
@@ -244,6 +302,7 @@ fn run_tray_with_options(
     agent: bool,
     open_dashboard: bool,
     locale: Option<&str>,
+    config_path: Option<&std::path::Path>,
 ) -> Result<()> {
     #[cfg(any(windows, target_os = "macos"))]
     {
@@ -252,6 +311,8 @@ fn run_tray_with_options(
         let _singleton = ui_shell::acquire_tray_singleton()?;
         #[cfg(windows)]
         ui_shell::detach_console();
+        #[cfg(target_os = "macos")]
+        ui_shell::set_accessory_policy();
 
         let ui_cfg = ui_shell::load_ui_bundle(ui.as_deref(), locale)?;
         tracing::info!(locale = %ui_cfg.locale, "UI locale loaded");
@@ -295,61 +356,91 @@ fn run_tray_with_options(
 
         let cfg_scan = cfg.clone();
         let mute_until = Arc::new(Mutex::new(None));
-        let mute_for_dash = Arc::clone(&mute_until);
-        let catalog_dash = Arc::clone(&catalog);
         let catalog_tray = Arc::clone(&catalog);
         let catalog_scan = Arc::clone(&catalog);
-        let catalog_fail = Arc::clone(&catalog);
-        let cfg_dash = cfg.clone();
-        let scan_rt_dash = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_all()
-            .build()?;
-
-        let dash_open = Arc::new(AtomicBool::new(false));
         let dash_show = Arc::new(Mutex::new(None::<ui_shell::DashboardShowHandle>));
+        #[cfg(target_os = "macos")]
+        let dash_child: Arc<Mutex<Option<std::process::Child>>> = Arc::new(Mutex::new(None));
+
+        // macOS: only one tao EventLoop may live on the OS main thread. Spawning a
+        // second EventLoop for the dashboard panics — open it as a child process.
+        // Windows: keep in-process dashboard thread + show-handle restore.
         let open_dashboard_fn: Arc<dyn Fn() + Send + Sync> = {
-            let dash_open = Arc::clone(&dash_open);
-            let dash_show = Arc::clone(&dash_show);
-            Arc::new(move || {
-                if let Ok(g) = dash_show.lock() {
-                    if let Some(handle) = g.as_ref() {
-                        tracing::info!("restoring dashboard from tray");
-                        handle.show();
-                        return;
-                    }
-                }
-                if dash_open.swap(true, Ordering::SeqCst) {
-                    tracing::info!("dashboard already starting");
-                    return;
-                }
-                match dashboard_hooks(
-                    cfg_dash.clone(),
-                    Arc::clone(&catalog_dash),
-                    Arc::clone(&mute_for_dash),
-                    &scan_rt_dash,
-                    true,
-                    Arc::clone(&dash_show),
-                ) {
-                    Ok(hooks) => {
-                        let dash_open = Arc::clone(&dash_open);
-                        std::thread::spawn(move || {
-                            if let Err(err) = ui_shell::run_dashboard(hooks) {
-                                tracing::error!(error = %err, "dashboard closed with error");
-                            }
-                            dash_open.store(false, Ordering::SeqCst);
-                        });
-                    }
-                    Err(err) => {
-                        dash_open.store(false, Ordering::SeqCst);
-                        tracing::error!(error = %err, "open dashboard failed");
+            #[cfg(target_os = "macos")]
+            {
+                let locale = locale.map(|s| s.to_string());
+                let config_path = config_path.map(|p| p.to_path_buf());
+                let ui_path = ui.clone();
+                let catalog_fail = Arc::clone(&catalog);
+                let dash_child = Arc::clone(&dash_child);
+                Arc::new(move || {
+                    if let Err(err) = open_or_focus_dashboard(
+                        &dash_child,
+                        config_path.as_deref(),
+                        ui_path.as_deref(),
+                        locale.as_deref(),
+                    ) {
+                        tracing::error!(error = %err, "spawn dashboard failed");
                         ui_shell::notify(
                             &catalog_fail.toast.dashboard_fail_title,
                             &err.to_string(),
                         );
                     }
-                }
-            })
+                })
+            }
+            #[cfg(windows)]
+            {
+                let mute_for_dash = Arc::clone(&mute_until);
+                let catalog_dash = Arc::clone(&catalog);
+                let catalog_fail = Arc::clone(&catalog);
+                let cfg_dash = cfg.clone();
+                let scan_rt_dash = tokio::runtime::Builder::new_multi_thread()
+                    .worker_threads(2)
+                    .enable_all()
+                    .build()
+                    .expect("dashboard scan runtime");
+                let dash_open = Arc::new(AtomicBool::new(false));
+                let dash_show = Arc::clone(&dash_show);
+                Arc::new(move || {
+                    if let Ok(g) = dash_show.lock() {
+                        if let Some(handle) = g.as_ref() {
+                            tracing::info!("restoring dashboard from tray");
+                            handle.show();
+                            return;
+                        }
+                    }
+                    if dash_open.swap(true, Ordering::SeqCst) {
+                        tracing::info!("dashboard already starting");
+                        return;
+                    }
+                    match dashboard_hooks(
+                        cfg_dash.clone(),
+                        Arc::clone(&catalog_dash),
+                        Arc::clone(&mute_for_dash),
+                        &scan_rt_dash,
+                        true,
+                        Arc::clone(&dash_show),
+                    ) {
+                        Ok(hooks) => {
+                            let dash_open = Arc::clone(&dash_open);
+                            std::thread::spawn(move || {
+                                if let Err(err) = ui_shell::run_dashboard(hooks) {
+                                    tracing::error!(error = %err, "dashboard closed with error");
+                                }
+                                dash_open.store(false, Ordering::SeqCst);
+                            });
+                        }
+                        Err(err) => {
+                            dash_open.store(false, Ordering::SeqCst);
+                            tracing::error!(error = %err, "open dashboard failed");
+                            ui_shell::notify(
+                                &catalog_fail.toast.dashboard_fail_title,
+                                &err.to_string(),
+                            );
+                        }
+                    }
+                })
+            }
         };
 
         if open_dashboard {
@@ -383,12 +474,16 @@ fn run_tray_with_options(
                 }),
                 on_quit: Box::new({
                     let dash_show = Arc::clone(&dash_show);
+                    #[cfg(target_os = "macos")]
+                    let dash_child = Arc::clone(&dash_child);
                     move || {
                         if let Ok(g) = dash_show.lock() {
                             if let Some(handle) = g.as_ref() {
                                 handle.request_exit();
                             }
                         }
+                        #[cfg(target_os = "macos")]
+                        kill_dashboard_child(&dash_child);
                         cancel_quit.store(true, Ordering::SeqCst);
                         tracing::info!("quit requested — stopping agent");
                     }
@@ -397,12 +492,93 @@ fn run_tray_with_options(
         })?;
         // Ensure agent stops if tray loop ends for any reason
         cancel.store(true, Ordering::SeqCst);
+        #[cfg(target_os = "macos")]
+        kill_dashboard_child(&dash_child);
         return Ok(());
     }
     #[cfg(not(any(windows, target_os = "macos")))]
     {
-        let _ = (cfg, ui, agent, open_dashboard, locale);
+        let _ = (cfg, ui, agent, open_dashboard, locale, config_path);
         anyhow::bail!("native tray not built for this target; use --console");
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn open_or_focus_dashboard(
+    dash_child: &Mutex<Option<std::process::Child>>,
+    config_path: Option<&std::path::Path>,
+    ui_path: Option<&std::path::Path>,
+    locale: Option<&str>,
+) -> Result<()> {
+    let mut slot = dash_child
+        .lock()
+        .map_err(|_| anyhow::anyhow!("dashboard child lock poisoned"))?;
+    if let Some(child) = slot.as_mut() {
+        match child.try_wait() {
+            Ok(None) => {
+                let pid = child.id();
+                // Unhide if minimized-to-tray, then bring forward.
+                ui_shell::request_dashboard_show(pid);
+                if ui_shell::activate_pid(pid) {
+                    tracing::info!(pid, "focused existing dashboard process");
+                } else {
+                    tracing::warn!(pid, "dashboard still running but activate failed; left alone");
+                }
+                return Ok(());
+            }
+            Ok(Some(status)) => {
+                tracing::debug!(?status, "previous dashboard exited");
+                *slot = None;
+            }
+            Err(err) => {
+                tracing::warn!(error = %err, "dashboard try_wait failed; respawning");
+                *slot = None;
+            }
+        }
+    }
+
+    let exe = std::env::current_exe()
+        .map_err(|e| anyhow::anyhow!("resolve mcp-guard executable: {e}"))?;
+    let mut cmd = std::process::Command::new(&exe);
+    if let Some(c) = config_path {
+        cmd.arg("--config").arg(c);
+    }
+    if let Some(l) = locale {
+        cmd.arg("--locale").arg(l);
+    }
+    cmd.arg("dashboard");
+    if let Some(u) = ui_path {
+        cmd.arg("--ui").arg(u);
+    }
+    // Hide-on-minimize/close; tray reopens via SIGUSR1 (not Dock minimize).
+    cmd.env("MCP_GUARD_HIDE_TO_TRAY", "1");
+    // Detach from tray's stdio so dashboard logs don't interleave awkwardly.
+    cmd.stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    let child = cmd
+        .spawn()
+        .map_err(|e| anyhow::anyhow!("spawn mcp-guard dashboard: {e}"))?;
+    tracing::info!(pid = child.id(), "spawned dashboard process (macOS main-thread EventLoop)");
+    *slot = Some(child);
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn kill_dashboard_child(dash_child: &Mutex<Option<std::process::Child>>) {
+    if let Ok(mut slot) = dash_child.lock() {
+        if let Some(mut child) = slot.take() {
+            let pid = child.id();
+            match child.try_wait() {
+                Ok(None) => {
+                    tracing::info!(pid, "stopping dashboard child on tray quit");
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+                Ok(Some(_)) => {}
+                Err(err) => tracing::debug!(error = %err, pid, "dashboard child wait failed"),
+            }
+        }
     }
 }
 
@@ -452,6 +628,8 @@ fn dashboard_hooks(
 fn run_dashboard_cli(cfg: Config, ui: Option<PathBuf>, locale: Option<&str>) -> Result<()> {
     #[cfg(any(windows, target_os = "macos"))]
     {
+        #[cfg(target_os = "macos")]
+        ui_shell::set_accessory_policy();
         let ui_cfg = ui_shell::load_ui_bundle(ui.as_deref(), locale)?;
         tracing::info!(locale = %ui_cfg.locale, "UI locale loaded");
         let mute_until = Arc::new(Mutex::new(None));
@@ -459,12 +637,15 @@ fn run_dashboard_cli(cfg: Config, ui: Option<PathBuf>, locale: Option<&str>) -> 
             .worker_threads(2)
             .enable_all()
             .build()?;
+        // Tray-spawned child sets MCP_GUARD_HIDE_TO_TRAY=1 so minimize/close
+        // hide the window (no Dock miniature) instead of exiting.
+        let hide_to_tray = std::env::var_os("MCP_GUARD_HIDE_TO_TRAY").is_some();
         let hooks = dashboard_hooks(
             cfg,
             Arc::new(ui_cfg.catalog),
             mute_until,
             &rt,
-            false,
+            hide_to_tray,
             Arc::new(Mutex::new(None)),
         )?;
         ui_shell::run_dashboard(hooks)?;

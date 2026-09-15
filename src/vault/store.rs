@@ -28,12 +28,21 @@ struct EncRecord {
 struct VaultFile {
     version: u32,
     secrets: HashMap<String, EncRecord>,
+    /// Alias → canonical secret name (no plaintext; one hop only).
+    #[serde(default)]
+    aliases: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct SecretMeta {
     pub name: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct AliasMeta {
+    pub alias: String,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -66,6 +75,7 @@ impl Vault {
             let empty = VaultFile {
                 version: 1,
                 secrets: HashMap::new(),
+                aliases: HashMap::new(),
             };
             write_store(&cfg.store_path, &empty)?;
         }
@@ -98,6 +108,20 @@ impl Vault {
         Ok(out)
     }
 
+    pub fn list_aliases(&self) -> Result<Vec<AliasMeta>> {
+        let file = self.read()?;
+        let mut out: Vec<_> = file
+            .aliases
+            .iter()
+            .map(|(alias, name)| AliasMeta {
+                alias: alias.clone(),
+                name: name.clone(),
+            })
+            .collect();
+        out.sort_by(|a, b| a.alias.cmp(&b.alias));
+        Ok(out)
+    }
+
     pub fn put(&self, name: &str, value: &str) -> Result<()> {
         if name.trim().is_empty() {
             bail!("secret name required");
@@ -106,6 +130,9 @@ impl Vault {
             bail!("secret value required");
         }
         let mut file = self.read()?;
+        if file.aliases.contains_key(name) {
+            bail!("'{name}' is an alias; remove alias first or pick another name");
+        }
         let (nonce, ct) = encrypt(&self.key, value.as_bytes())?;
         file.secrets.insert(
             name.to_string(),
@@ -120,17 +147,89 @@ impl Vault {
 
     pub fn delete(&self, name: &str) -> Result<bool> {
         let mut file = self.read()?;
-        let removed = file.secrets.remove(name).is_some();
+        let removed_secret = file.secrets.remove(name).is_some();
+        let removed_alias = file.aliases.remove(name).is_some();
+        // Drop aliases that pointed at a deleted secret.
+        if removed_secret {
+            file.aliases.retain(|_, target| target != name);
+        }
+        if removed_secret || removed_alias {
+            self.write(&file)?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    /// Rename a canonical secret; rewrite aliases that pointed at the old name.
+    pub fn rename(&self, from: &str, to: &str) -> Result<()> {
+        let from = from.trim();
+        let to = to.trim();
+        if from.is_empty() || to.is_empty() {
+            bail!("from/to name required");
+        }
+        if from == to {
+            return Ok(());
+        }
+        let mut file = self.read()?;
+        if file.aliases.contains_key(to) {
+            bail!("'{to}' is already an alias");
+        }
+        if file.secrets.contains_key(to) {
+            bail!("secret already exists: {to}");
+        }
+        let Some(rec) = file.secrets.remove(from) else {
+            bail!("secret not found: {from}");
+        };
+        file.secrets.insert(to.to_string(), rec);
+        for target in file.aliases.values_mut() {
+            if target == from {
+                *target = to.to_string();
+            }
+        }
+        // If `from` was also used as an alias key, drop it (canonical wins).
+        file.aliases.remove(from);
+        self.write(&file)
+    }
+
+    /// Point `alias` at an existing secret name (or another alias's target).
+    pub fn set_alias(&self, alias: &str, target: &str) -> Result<()> {
+        let alias = alias.trim();
+        let target = target.trim();
+        if alias.is_empty() || target.is_empty() {
+            bail!("alias and target required");
+        }
+        if alias == target {
+            bail!("alias must differ from target");
+        }
+        let mut file = self.read()?;
+        if file.secrets.contains_key(alias) {
+            bail!("'{alias}' is already a secret name");
+        }
+        let canonical = resolve_canonical(&file, target)?;
+        file.aliases.insert(alias.to_string(), canonical);
+        self.write(&file)
+    }
+
+    pub fn remove_alias(&self, alias: &str) -> Result<bool> {
+        let mut file = self.read()?;
+        let removed = file.aliases.remove(alias).is_some();
         if removed {
             self.write(&file)?;
         }
         Ok(removed)
     }
 
-    /// Local-only plaintext resolve (never an MCP tool result).
+    /// Resolve alias → canonical (one hop). Returns canonical name.
+    pub fn canonical_name(&self, name: &str) -> Result<String> {
+        let file = self.read()?;
+        resolve_canonical(&file, name)
+    }
+
+    /// Local-only plaintext resolve (never an MCP tool result). Accepts alias or name.
     pub fn resolve_local(&self, name: &str) -> Result<String> {
         let file = self.read()?;
-        let Some(rec) = file.secrets.get(name) else {
+        let canonical = resolve_canonical(&file, name)?;
+        let Some(rec) = file.secrets.get(&canonical) else {
             bail!("secret not found: {name}");
         };
         let nonce = B64.decode(&rec.nonce_b64).context("nonce b64")?;
@@ -140,8 +239,9 @@ impl Vault {
     }
 
     pub fn issue_ref(&self, name: &str) -> Result<VaultRef> {
+        let canonical = self.canonical_name(name)?;
         // Ensure exists
-        let _ = self.resolve_local(name)?;
+        let _ = self.resolve_local(&canonical)?;
         let mut id = [0u8; 16];
         rand::rng().fill(&mut id);
         let ref_id = format!("vr_{}", hex::encode(id));
@@ -154,13 +254,13 @@ impl Vault {
         self.refs.lock().unwrap().insert(
             ref_id.clone(),
             LiveRef {
-                name: name.to_string(),
+                name: canonical.clone(),
                 expires_at,
             },
         );
         Ok(VaultRef {
             ref_id,
-            name: name.to_string(),
+            name: canonical,
             expires_at_unix,
         })
     }
@@ -202,6 +302,19 @@ impl Vault {
         let value = self.resolve_local(&name)?;
         Ok((name, value))
     }
+}
+
+fn resolve_canonical(file: &VaultFile, name: &str) -> Result<String> {
+    if file.secrets.contains_key(name) {
+        return Ok(name.to_string());
+    }
+    if let Some(target) = file.aliases.get(name) {
+        if file.secrets.contains_key(target) {
+            return Ok(target.clone());
+        }
+        bail!("alias '{name}' points to missing secret '{target}'");
+    }
+    bail!("secret not found: {name}")
 }
 
 fn load_or_create_key(path: &Path) -> Result<[u8; KEY_LEN]> {

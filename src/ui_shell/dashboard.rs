@@ -60,8 +60,11 @@ enum UserEvent {
     WindowMinimize,
     WindowToggleMaximize,
     WindowClose,
+    WindowDrag,
     ShowWindow,
     ExitLoop,
+    VaultMcpRefresh,
+    VaultMcpStatus(crate::vault::CursorMcpStatus),
 }
 
 fn ui_root_dir() -> Result<PathBuf> {
@@ -266,9 +269,14 @@ pub fn run_dashboard(hooks: DashboardHooks) -> Result<()> {
         // Tray owns the process main thread; dashboard opens on a worker thread.
         builder.with_any_thread(true);
     }
-    let event_loop = builder.build();
+    let mut event_loop = builder.build();
+    #[cfg(target_os = "macos")]
+    {
+        // Prevent Dock "exec" tile for the dashboard child process.
+        use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
+        event_loop.set_activation_policy(ActivationPolicy::Accessory);
+    }
     let proxy = event_loop.create_proxy();
-    let mut event_loop = event_loop;
 
     let window_icon = match super::brand::brand_icon_rgba(48) {
         Ok((rgba, w, h)) => WindowIcon::from_rgba(rgba, w, h).ok(),
@@ -326,6 +334,9 @@ pub fn run_dashboard(hooks: DashboardHooks) -> Result<()> {
                 "window-close" => {
                     let _ = proxy_ipc.send_event(UserEvent::WindowClose);
                 }
+                "window-drag" => {
+                    let _ = proxy_ipc.send_event(UserEvent::WindowDrag);
+                }
                 "scan" => {
                     spawn_dashboard_scan(
                         Arc::clone(&hooks_ipc),
@@ -354,6 +365,31 @@ pub fn run_dashboard(hooks: DashboardHooks) -> Result<()> {
                 }
                 "vault-list" => {
                     let _ = proxy_ipc.send_event(UserEvent::Refresh);
+                }
+                "vault-mcp-status" => {
+                    let _ = proxy_ipc.send_event(UserEvent::VaultMcpRefresh);
+                }
+                "vault-mcp-install" => {
+                    let hooks = Arc::clone(&hooks_ipc);
+                    let proxy = proxy_ipc.clone();
+                    std::thread::spawn(move || {
+                        match crate::vault::install_cursor_vault_mcp_default() {
+                            Ok(status) => {
+                                crate::ui_shell::notify(
+                                    &hooks.catalog.toast.vault_mcp_ok_title,
+                                    &hooks.catalog.toast.vault_mcp_ok_body,
+                                );
+                                let _ = proxy.send_event(UserEvent::VaultMcpStatus(status));
+                            }
+                            Err(err) => {
+                                crate::ui_shell::notify(
+                                    &hooks.catalog.toast.vault_mcp_fail_title,
+                                    &err.to_string(),
+                                );
+                                let _ = proxy.send_event(UserEvent::VaultMcpRefresh);
+                            }
+                        }
+                    });
                 }
                 "vault-put" => {
                     let name = parsed
@@ -478,12 +514,21 @@ pub fn run_dashboard(hooks: DashboardHooks) -> Result<()> {
             proxy: proxy.clone(),
         });
     }
+    #[cfg(target_os = "macos")]
+    if hide_to_tray {
+        // Tray child: minimize/close hide the window; tray reopens via SIGUSR1.
+        let proxy_show = proxy.clone();
+        super::install_show_signal_watcher(move || {
+            let _ = proxy_show.send_event(UserEvent::ShowWindow);
+        });
+    }
 
     event_loop.run_return(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
         match event {
             Event::NewEvents(StartCause::Init) => {
                 refresh_dashboard_ui(&webview, &hooks_loop, &scanning);
+                push_vault_mcp_status(&webview);
                 spawn_dashboard_scan(Arc::clone(&hooks_loop), proxy.clone(), Arc::clone(&scanning));
                 let _ = webview.evaluate_script(
                     "window.mcpGuardScanning && window.mcpGuardScanning(true);",
@@ -529,6 +574,12 @@ pub fn run_dashboard(hooks: DashboardHooks) -> Result<()> {
                     "window.mcpGuardScanning && window.mcpGuardScanning(false);",
                 );
             }
+            Event::UserEvent(UserEvent::VaultMcpRefresh) => {
+                push_vault_mcp_status(&webview);
+            }
+            Event::UserEvent(UserEvent::VaultMcpStatus(status)) => {
+                let _ = webview.evaluate_script(&vault_mcp_status_js(&status));
+            }
             Event::UserEvent(UserEvent::WindowMinimize) => {
                 if hide_to_tray {
                     window.set_visible(false);
@@ -544,6 +595,12 @@ pub fn run_dashboard(hooks: DashboardHooks) -> Result<()> {
                     window.set_visible(false);
                 } else {
                     *control_flow = ControlFlow::Exit;
+                }
+            }
+            Event::UserEvent(UserEvent::WindowDrag) => {
+                // Undecorated wry window: -webkit-app-region is ignored; drag via tao.
+                if let Err(err) = window.drag_window() {
+                    tracing::debug!(error = %err, "window.drag_window failed");
                 }
             }
             Event::UserEvent(UserEvent::ShowWindow) => {
@@ -645,4 +702,34 @@ fn refresh_dashboard_ui(
             ));
         }
     }
+    push_vault_mcp_status(webview);
+}
+
+fn push_vault_mcp_status(webview: &wry::WebView) {
+    match crate::vault::probe_cursor_vault_mcp_default() {
+        Ok(status) => {
+            let _ = webview.evaluate_script(&vault_mcp_status_js(&status));
+        }
+        Err(err) => {
+            tracing::debug!(error = %err, "vault-mcp probe failed");
+            let payload = json!({
+                "state": "broken",
+                "detail": err.to_string(),
+                "mcp_json_path": "",
+                "cursor_detected": false,
+                "exe": "",
+            });
+            let _ = webview.evaluate_script(&format!(
+                "window.mcpGuardVaultMcpApply && window.mcpGuardVaultMcpApply({});",
+                payload
+            ));
+        }
+    }
+}
+
+fn vault_mcp_status_js(status: &crate::vault::CursorMcpStatus) -> String {
+    format!(
+        "window.mcpGuardVaultMcpApply && window.mcpGuardVaultMcpApply({});",
+        json!(status)
+    )
 }

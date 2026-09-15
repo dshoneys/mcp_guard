@@ -465,6 +465,58 @@
     }
 
     .vault { display: flex; flex-direction: column; gap: 0.65rem; flex: 1; min-height: 0; }
+    .vault-agent {
+      border: 1px solid #333846;
+      border-radius: 12px;
+      padding: 0.75rem 0.85rem;
+      background: color-mix(in srgb, var(--mg-surface) 88%, #1a2230);
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+    .vault-agent .atitle {
+      margin: 0;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .vault-agent .astatus {
+      margin: 0;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      color: var(--mg-text);
+    }
+    .vault-agent .adetail {
+      margin: 0;
+      font-size: 0.75rem;
+      color: var(--mg-muted);
+      word-break: break-all;
+    }
+    .vault-agent .arow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .vault-agent button {
+      border: 1px solid var(--mg-accent);
+      background: var(--mg-accent);
+      color: #0e1014;
+      border-radius: 10px;
+      padding: 0.4rem 0.75rem;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .vault-agent button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .vault-agent[data-state="installed"] { border-color: color-mix(in srgb, var(--mg-ok) 45%, #333846); }
+    .vault-agent[data-state="broken"],
+    .vault-agent[data-state="error"] { border-color: color-mix(in srgb, var(--mg-danger) 50%, #333846); }
+    .vault-agent[data-state="no_cursor"] { border-color: #333846; }
     .vault-form { display: grid; grid-template-columns: 1fr 1.3fr auto; gap: 0.4rem; }
     .vault-form input {
       border: 1px solid #333846; background: var(--mg-surface); color: var(--mg-text);
@@ -576,6 +628,15 @@
           <h2 id="vault-title">密钥保险箱</h2>
           <p class="hint" id="vault-hint">Agent 通过 MCP 使用引用 — 密钥不会作为工具明文返回。</p>
         </header>
+        <aside class="vault-agent" id="vault-agent" data-state="probing" aria-live="polite">
+          <p class="atitle" id="vault-agent-title">Agent 接入（Cursor）</p>
+          <p class="astatus" id="vault-mcp-status">正在检测…</p>
+          <p class="adetail" id="vault-mcp-detail"></p>
+          <div class="arow">
+            <button type="button" id="vault-mcp-cta" hidden>一键安装</button>
+            <span class="adetail" id="vault-mcp-hint"></span>
+          </div>
+        </aside>
         <form class="vault-form" id="vault-form" autocomplete="off">
           <input id="vault-name" name="name" type="text" placeholder="名称（如 openai）" required maxlength="64" />
           <input id="vault-value" name="value" type="password" placeholder="密钥（仅显示一次）" required autocomplete="new-password" />
@@ -664,6 +725,17 @@
         confirm_delete: "删除密钥「{name}」？",
         preview_saved: "预览：已保存「{name}」。",
         preview_deleted: "预览：已删除「{name}」。",
+        agent_title: "Agent 接入（Cursor）",
+        mcp_probing: "正在检测…",
+        mcp_no_cursor: "未检测到本机 Cursor。安装 Cursor 后回到此处接入 vault-mcp。",
+        mcp_not_installed: "已检测到 Cursor，尚未接入 vault-mcp。",
+        mcp_installed: "已接入 vault-mcp。若工具未出现，请在 Cursor 中重载 MCP。",
+        mcp_broken: "配置异常，可一键修复。",
+        mcp_busy: "正在写入 mcp.json…",
+        mcp_install: "一键安装",
+        mcp_repair: "一键修复",
+        mcp_rewrite: "重新写入",
+        mcp_reload_hint: "写入后请在 Cursor 重载 MCP / 重启窗口。",
       },
     };
 
@@ -689,7 +761,10 @@
       document.getElementById("view-home").hidden = id !== "home";
       document.getElementById("view-plugins").hidden = id !== "plugins";
       document.getElementById("view-vault").hidden = id !== "vault";
-      if (id === "vault") postNative({ action: "vault-list" });
+      if (id === "vault") {
+        postNative({ action: "vault-list" });
+        postNative({ action: "vault-mcp-status" });
+      }
     }
 
     function applyI18n(pack) {
@@ -724,16 +799,57 @@
       document.getElementById("plugin-coming-badge").textContent = p.coming_badge;
       document.getElementById("vault-title").textContent = v.title;
       document.getElementById("vault-hint").textContent = v.hint;
+      document.getElementById("vault-agent-title").textContent = v.agent_title || "Agent 接入（Cursor）";
       document.getElementById("vault-name").placeholder = v.name_placeholder;
       document.getElementById("vault-value").placeholder = v.value_placeholder;
       document.getElementById("vault-save").textContent = v.save;
       document.getElementById("vault-empty").textContent = v.empty;
+      document.getElementById("vault-mcp-hint").textContent = v.mcp_reload_hint || "";
       const panel = document.getElementById("scan-panel");
       if (panel.dataset.kind === "idle") {
         document.getElementById("scan-headline").textContent = d.scan_panel_waiting;
         document.getElementById("risk-empty").textContent =
           "点「" + d.scan_now + "」探测本地 MCP 表面。";
       }
+    }
+
+    function applyVaultMcp(status) {
+      const v = i18n.vault;
+      const box = document.getElementById("vault-agent");
+      const line = document.getElementById("vault-mcp-status");
+      const detail = document.getElementById("vault-mcp-detail");
+      const cta = document.getElementById("vault-mcp-cta");
+      const state = (status && status.state) || "broken";
+      box.dataset.state = state;
+      const statusText = {
+        probing: v.mcp_probing,
+        no_cursor: v.mcp_no_cursor,
+        not_installed: v.mcp_not_installed,
+        installed: v.mcp_installed,
+        broken: v.mcp_broken,
+        busy: v.mcp_busy,
+        error: v.mcp_broken,
+      };
+      line.textContent = statusText[state] || v.mcp_broken;
+      const bits = [];
+      if (status && status.detail) bits.push(status.detail);
+      if (status && status.mcp_json_path) bits.push(status.mcp_json_path);
+      detail.textContent = bits.join(" · ");
+      let label = "";
+      let show = false;
+      if (state === "not_installed") {
+        label = v.mcp_install;
+        show = true;
+      } else if (state === "broken" || state === "error") {
+        label = v.mcp_repair;
+        show = true;
+      } else if (state === "installed") {
+        label = v.mcp_rewrite;
+        show = true;
+      }
+      cta.hidden = !show;
+      cta.disabled = state === "busy" || state === "probing";
+      cta.textContent = label;
     }
 
     function postNative(payload) {
@@ -994,6 +1110,22 @@
     document.getElementById("btn-back-plugins").addEventListener("click", () => showView("plugins"));
     document.getElementById("plugin-vault").addEventListener("click", () => showView("vault"));
 
+    document.getElementById("vault-mcp-cta").addEventListener("click", () => {
+      const box = document.getElementById("vault-agent");
+      box.dataset.state = "busy";
+      document.getElementById("vault-mcp-status").textContent = i18n.vault.mcp_busy;
+      document.getElementById("vault-mcp-cta").disabled = true;
+      if (!postNative({ action: "vault-mcp-install" })) {
+        // Preview mock: flip to installed.
+        applyVaultMcp({
+          state: "installed",
+          detail: "preview · mcp-guard-vault",
+          mcp_json_path: "~/.cursor/mcp.json",
+        });
+        setVaultNote("ok", i18n.vault.mcp_reload_hint || "");
+      }
+    });
+
     document.getElementById("btn-win-min").addEventListener("click", () => {
       postNative({ action: "window-minimize" });
     });
@@ -1002,6 +1134,12 @@
     });
     document.getElementById("btn-win-close").addEventListener("click", () => {
       postNative({ action: "window-close" });
+    });
+    document.getElementById("titlebar").addEventListener("mousedown", (ev) => {
+      // wry/WKWebView ignores -webkit-app-region; drag via native IPC.
+      if (ev.button !== 0) return;
+      if (ev.target.closest(".win-controls, .chip, button, a, input, select, textarea")) return;
+      postNative({ action: "window-drag" });
     });
     document.getElementById("titlebar").addEventListener("dblclick", (ev) => {
       if (ev.target.closest(".win-controls, .chip, button, a")) return;
@@ -1032,6 +1170,7 @@
     window.mcpGuardScanResult = applyScanResult;
     window.mcpGuardVaultApply = applyVault;
     window.mcpGuardVaultClearForm = clearVaultForm;
+    window.mcpGuardVaultMcpApply = applyVaultMcp;
     window.mcpGuardI18n = applyI18n;
 
     applyI18n(i18n);

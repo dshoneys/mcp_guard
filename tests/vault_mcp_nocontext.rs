@@ -59,3 +59,30 @@ fn list_payload_names_only() {
     assert!(!text.contains("super-secret-value"));
     assert!(text.contains("api"));
 }
+
+#[test]
+fn alias_and_env_map_run_scrub() {
+    let v = vault("map");
+    dispatch_tool_for_test(
+        &v,
+        "vault_alias",
+        json!({"alias": "TOKEN", "name": "api"}),
+    )
+    .unwrap();
+    let res = dispatch_tool_for_test(
+        &v,
+        "vault_run_with_secret",
+        json!({
+            "command": "sh",
+            "args": ["-c", "printf '%s' \"$MY_TOKEN\""],
+            "env_map": { "MY_TOKEN": "TOKEN" }
+        }),
+    )
+    .unwrap();
+    let text = res["content"][0]["text"].as_str().unwrap();
+    assert!(!text.contains("super-secret-value"));
+    let parsed: serde_json::Value = serde_json::from_str(text).unwrap();
+    assert_eq!(parsed["exit_code"], 0);
+    assert!(parsed["stdout"].as_str().unwrap().contains("***REDACTED***"));
+    assert_nocontext(&parsed).unwrap();
+}

@@ -202,6 +202,21 @@
       "status": "in_progress"
     },
     {
+      "id": "REQ-VAULT-MCP-UI",
+      "title": "Vault view: detect local Cursor and one-click install vault-mcp into mcp.json",
+      "component": "ui_shell",
+      "ui": true,
+      "ux_path": "doc/ux/REQ-VAULT-MCP-UI",
+      "ux_status": "accepted",
+      "ui_path": "doc/ui/REQ-VAULT-MCP-UI",
+      "ui_status": "accepted",
+      "ui_impl": "hybrid",
+      "test_kind": "unit",
+      "tests": ["src/vault/cursor_install.rs"],
+      "acceptance": "Vault strip shows Cursor/vault-mcp status; one-click merges mcp-guard-vault into ~/.cursor/mcp.json without clobbering other servers; toast+strip feedback; no secret plaintext",
+      "status": "in_progress"
+    },
+    {
       "id": "REQ-I18N",
       "title": "UI locale packs; default zh-CN for daily debug",
       "component": "ui_shell",

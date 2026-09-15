@@ -8,3 +8,4 @@
 - Form: name + secret input + Save
 - Row action: Delete
 - Hint: NoContext MCP (refs only)
+- Agent 接入 strip (Cursor detect + one-click `vault-mcp`): see sibling [REQ-VAULT-MCP-UI](../REQ-VAULT-MCP-UI/brief.md)

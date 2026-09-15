@@ -32,3 +32,5 @@ Standalone `dashboard` CLI (no tray) still closes the process on ×.
 ## Plugins shell
 
 `view-plugins` is an abstract hub. Today: **密钥保险箱** (vault). Future plugins register as cards here — vault is not a top-level peer of Scan.
+
+Vault view also hosts **Cursor / vault-mcp 接入** (REQ-VAULT-MCP-UI): status strip + one-click write to `~/.cursor/mcp.json`.
