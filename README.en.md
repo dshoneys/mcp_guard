@@ -122,6 +122,8 @@ mcp-guard git-scan --staged .
 
 ## Build
 
+macOS: if linking fails against `MacOSX27.sdk` (`arm64e.x1` TBD errors), pin a stable SDK first. Double-clickable menu-bar app: [`doc/structurizr/MACOS-APP.md`](doc/structurizr/MACOS-APP.md) / `./scripts/macos_pack_app.sh`.
+
 ```bash
 cargo build --release
 ./target/release/mcp-guard scan

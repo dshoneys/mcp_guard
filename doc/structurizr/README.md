@@ -11,6 +11,8 @@
 | [modules-catalog.md](./modules-catalog.md) | Module contracts |
 | [COMPONENT-TEST-MAP.md](./COMPONENT-TEST-MAP.md) | Req ↔ test map |
 | [decisions/](./decisions/) | ADRs |
+| [MAIN-UI-SHELL.md](./MAIN-UI-SHELL.md) | Dashboard / tray shell |
+| [MACOS-APP.md](./MACOS-APP.md) | macOS `.app` build & packaging |
 
 ## Check
 

@@ -281,6 +281,8 @@ impl MenuItems {
 }
 
 fn icon_brand_or_fallback(severity: GuardSeverity) -> Icon {
+    // Full-color brand mark (not macOS template): the logo is an opaque dark plate;
+    // template mode turns that plate into a solid white menu-bar tile.
     match super::brand::brand_icon_rgba(32) {
         Ok((rgba, w, h)) => match Icon::from_rgba(rgba, w, h) {
             Ok(icon) => icon,

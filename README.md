@@ -124,6 +124,9 @@ mcp-guard git-scan --staged .   # pre-commit
 
 ## 构建与调�?
 
+
+macOS: if MacOSX27.sdk link fails, pin a stable SDK. App pack: [doc/structurizr/MACOS-APP.md](doc/structurizr/MACOS-APP.md) / `./scripts/macos_pack_app.sh`.
+
 ```bash
 cargo build --release
 ./target/release/mcp-guard scan

@@ -124,13 +124,19 @@ enum VaultCmd {
 }
 
 fn main() -> Result<()> {
+    // macOS .app double-click: CFBundleExecutable is this binary with no args.
+    let args = inject_macos_app_launch_args(std::env::args_os().collect());
+    // Set Accessory *before* any AppKit/tao init so Dock never creates an "exec" tile.
+    #[cfg(target_os = "macos")]
+    early_macos_accessory_policy(&args);
+
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .init();
 
-    let cli = Cli::parse();
+    let cli = Cli::parse_from(args);
     let cfg = config::load(cli.config.as_deref())?;
     let locale = cli.locale.as_deref();
     // Keep CLI config path so macOS can spawn a dashboard child with the same flags.
@@ -294,6 +300,43 @@ fn tokio_rt() -> Result<tokio::runtime::Runtime> {
 
 fn native_tray_supported() -> bool {
     cfg!(any(windows, target_os = "macos"))
+}
+
+/// When launched as `Something.app/Contents/MacOS/MCPGuard` with no CLI args,
+/// default to `tray` and load `Contents/Resources/mcp-guard.toml` if present.
+fn inject_macos_app_launch_args(
+    mut args: Vec<std::ffi::OsString>,
+) -> Vec<std::ffi::OsString> {
+    if args.len() != 1 {
+        return args;
+    }
+    let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from(&args[0]));
+    let exe_s = exe.to_string_lossy();
+    if !exe_s.contains(".app/Contents/MacOS/") {
+        return args;
+    }
+    if let Some(macos_dir) = exe.parent() {
+        let cfg = macos_dir.join("../Resources/mcp-guard.toml");
+        if let Ok(cfg) = cfg.canonicalize() {
+            args.push("--config".into());
+            args.push(cfg.into_os_string());
+        }
+    }
+    args.push("tray".into());
+    args
+}
+
+#[cfg(target_os = "macos")]
+fn early_macos_accessory_policy(args: &[std::ffi::OsString]) {
+    let ui = args.iter().any(|a| {
+        matches!(
+            a.to_string_lossy().as_ref(),
+            "tray" | "dashboard" | "--tray"
+        )
+    });
+    if ui {
+        ui_shell::set_accessory_policy();
+    }
 }
 
 fn run_tray_with_options(
