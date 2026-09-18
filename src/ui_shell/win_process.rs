@@ -5,6 +5,8 @@ use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr;
 
+use super::TraySingletonAcquire;
+
 type HANDLE = *mut std::ffi::c_void;
 
 const ERROR_ALREADY_EXISTS: u32 = 183;
@@ -34,8 +36,8 @@ impl Drop for TraySingleton {
     }
 }
 
-/// Acquire `Local\mcp-guard-tray`. Second instance returns an error (not panic).
-pub fn acquire_tray_singleton() -> Result<TraySingleton> {
+/// Acquire `Local\mcp-guard-tray`. Second instance returns [`TraySingletonAcquire::Secondary`].
+pub fn try_acquire_tray_singleton() -> Result<TraySingletonAcquire> {
     let name: Vec<u16> = OsStr::new("Local\\mcp-guard-tray")
         .encode_wide()
         .chain(std::iter::once(0))
@@ -48,9 +50,9 @@ pub fn acquire_tray_singleton() -> Result<TraySingleton> {
         unsafe {
             CloseHandle(handle);
         }
-        bail!("MCP Guard 托盘已在运行（请使用系统托盘图标，勿重复启动）");
+        return Ok(TraySingletonAcquire::Secondary);
     }
-    Ok(TraySingleton(handle))
+    Ok(TraySingletonAcquire::Primary(TraySingleton(handle)))
 }
 
 /// Drop the inherited console so `Start-Process` / `cargo run` does not leave a black CMD window.

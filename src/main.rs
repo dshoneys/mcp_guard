@@ -349,9 +349,26 @@ fn run_tray_with_options(
 ) -> Result<()> {
     #[cfg(any(windows, target_os = "macos"))]
     {
-        // Keep mutex alive for the whole tray session.
-        #[cfg(windows)]
-        let _singleton = ui_shell::acquire_tray_singleton()?;
+        // Single tray agent for the user session.
+        let _singleton = match ui_shell::try_acquire_tray_singleton()? {
+            ui_shell::TraySingletonAcquire::Secondary => {
+                #[cfg(target_os = "macos")]
+                {
+                    if let Err(err) = ui_shell::notify_running_tray_show_dashboard() {
+                        tracing::warn!(
+                            error = %err,
+                            "tray already running; could not signal primary instance"
+                        );
+                    } else {
+                        tracing::info!("tray already running; handed off to primary instance");
+                    }
+                }
+                #[cfg(windows)]
+                tracing::info!("tray already running; exiting second instance");
+                return Ok(());
+            }
+            ui_shell::TraySingletonAcquire::Primary(guard) => guard,
+        };
         #[cfg(windows)]
         ui_shell::detach_console();
         #[cfg(target_os = "macos")]
@@ -485,6 +502,12 @@ fn run_tray_with_options(
                 })
             }
         };
+
+        #[cfg(target_os = "macos")]
+        {
+            let f = Arc::clone(&open_dashboard_fn);
+            ui_shell::install_tray_activate_watcher(move || f());
+        }
 
         if open_dashboard {
             tracing::info!("opening main dashboard alongside tray");

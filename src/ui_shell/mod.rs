@@ -17,12 +17,26 @@ pub use dashboard::{run_dashboard, DashboardHooks, DashboardShowHandle};
 pub use i18n::{fmt_named, load_catalog, Catalog, DEFAULT_LOCALE};
 #[cfg(target_os = "macos")]
 pub use macos_process::{
-    activate_pid, install_show_signal_watcher, request_dashboard_show, set_accessory_policy,
+    activate_pid, install_show_signal_watcher, install_tray_activate_watcher,
+    notify_running_tray_show_dashboard, request_dashboard_show, set_accessory_policy,
+    try_acquire_tray_singleton,
 };
 #[cfg(any(windows, target_os = "macos"))]
 pub use native::{run_native_tray, NativeTrayConfig, NativeTrayHooks};
 #[cfg(windows)]
-pub use win_process::{acquire_tray_singleton, detach_console};
+pub use win_process::{detach_console, try_acquire_tray_singleton};
+
+/// Outcome of claiming the single tray agent slot (Windows mutex / macOS flock).
+#[cfg(any(windows, target_os = "macos"))]
+pub enum TraySingletonAcquire {
+    /// This process owns the tray; keep the guard alive for the session.
+    #[cfg(windows)]
+    Primary(win_process::TraySingleton),
+    #[cfg(target_os = "macos")]
+    Primary(macos_process::TraySingleton),
+    /// Another tray is already running.
+    Secondary,
+}
 
 use crate::contracts::{
     AlertSnapshot, GuardSeverity, TrayActionId, TrayMenuItem, TrayMenuModel,

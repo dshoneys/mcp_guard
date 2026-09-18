@@ -51,6 +51,7 @@ MCP Guard.app/
 | **No-arg `.app` launch → `tray`** | Finder double-click has no argv; binary injects `--config Resources/mcp-guard.toml tray` |
 | **Vault paths absolute** | Default vault files are cwd-relative (`mcp-guard-vault.enc`). Wrong cwd → empty vault |
 | **Tray icon = full-color logo** | Do **not** mark the brand PNG as an NSImage template; opaque dark plate → solid white menu-bar square |
+| **Single tray instance** | `flock` on `~/Library/Application Support/mcp-guard/tray.lock`; second launch SIGUSR2s the primary to show the dashboard and exits |
 
 ## Vault config for the app
 
